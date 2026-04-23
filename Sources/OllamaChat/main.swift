@@ -4,9 +4,14 @@ import AVFoundation
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
-let OLLAMA_BASE   = "http://localhost:11434"
 let WHISPER_BIN   = "/usr/local/bin/whisper-cli"   // brew install whisper-cpp
 let WHISPER_MODEL = NSHomeDirectory() + "/.ollama-chat/ggml-base.bin"
+
+// URL de Ollama — se guarda en UserDefaults para persistir entre sesiones
+var OLLAMA_BASE: String {
+    get { UserDefaults.standard.string(forKey: "ollamaURL") ?? "http://localhost:11434" }
+    set { UserDefaults.standard.set(newValue, forKey: "ollamaURL") }
+}
 
 // ── AppDelegate ───────────────────────────────────────────────────────────────
 
@@ -24,6 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Abrir chat", action: #selector(toggleChat), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Cambiar URL de Ollama…", action: #selector(changeURL), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Salir", action: #selector(quit), keyEquivalent: "q"))
         statusItem?.menu = menu
@@ -35,6 +41,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func toggleChat() {
         if chatWindow == nil { chatWindow = ChatWindow() }
         chatWindow?.showAndFocus()
+    }
+
+    @objc func changeURL() {
+        let alert = NSAlert()
+        alert.messageText = "URL de Ollama"
+        alert.informativeText = "Introduce la URL del servidor Ollama:"
+        alert.addButton(withTitle: "Guardar")
+        alert.addButton(withTitle: "Cancelar")
+
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+        input.stringValue = OLLAMA_BASE
+        input.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        alert.accessoryView = input
+
+        alert.window.initialFirstResponder = input
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            let url = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !url.isEmpty {
+                OLLAMA_BASE = url
+                // Recargar modelos en la ventana abierta
+                chatWindow?.webView.fetchModels()
+            }
+        }
     }
 
     @objc func quit() { NSApp.terminate(nil) }
@@ -274,6 +304,7 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     let view: WKWebView
     let recorder = AudioRecorder()
     var isRecording = false
+    var currentStreamSession: URLSession?
 
     init(frame: NSRect = .zero) {
         let config = WKWebViewConfiguration()
@@ -288,6 +319,7 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         contentController.add(self, name: "loadModels")
         contentController.add(self, name: "startRecording")
         contentController.add(self, name: "stopRecording")
+        contentController.add(self, name: "stopStream")
         contentController.add(self, name: "checkWhisper")
 
         loadHTML()
@@ -310,6 +342,13 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         case "startRecording":
             guard !isRecording else { return }
             requestMicAndRecord()
+
+        case "stopStream":
+            currentStreamSession?.invalidateAndCancel()
+            currentStreamSession = nil
+            DispatchQueue.main.async {
+                self.view.evaluateJavaScript("endStream()", completionHandler: nil)
+            }
 
         case "stopRecording":
             guard isRecording else { return }
@@ -346,17 +385,25 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     }
 
     func requestMicAndRecord() {
+        // AVAudioApplication requiere macOS 14+, usar API compatible con macOS 13
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .authorized:
             startRecording()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
                 if granted { DispatchQueue.main.async { self?.startRecording() } }
+                else {
+                    DispatchQueue.main.async {
+                        self?.view.evaluateJavaScript(
+                            "onMicError('Permiso de micrófono denegado.')",
+                            completionHandler: nil)
+                    }
+                }
             }
         default:
             DispatchQueue.main.async {
                 self.view.evaluateJavaScript(
-                    "onMicError('Permiso de micrófono denegado. Actívalo en Ajustes del Sistema.')",
+                    "onMicError('Permiso denegado. Actívalo en Ajustes > Privacidad > Micrófono.')",
                     completionHandler: nil)
             }
         }
@@ -397,9 +444,11 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         req.httpBody = try? JSONSerialization.data(withJSONObject: [
             "model": model, "prompt": prompt, "stream": true
         ])
+        currentStreamSession?.invalidateAndCancel()
         let session = URLSession(configuration: .default,
                                  delegate: StreamDelegate(webView: view),
                                  delegateQueue: nil)
+        currentStreamSession = session
         session.dataTask(with: req).resume()
     }
 
@@ -544,13 +593,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);
   <div id="whisper-hint"></div>
   <div id="bottom">
     <textarea id="inp" placeholder="Mensaje… (Enter)" rows="1"></textarea>
-    <button id="mic-btn" class="action-btn" title="Mantén pulsado para grabar">🎙</button>
+    <button id="mic-btn" class="action-btn" title="Clic para grabar">🎙</button>
     <button id="btn" class="action-btn">↵</button>
   </div>
 </div>
 <script>
 let model = 'llama3.2', busy = false, currentBody = null;
 let micState = 'idle'; // idle | recording | transcribing
+let streaming = false;
 let whisperOk = false;
 
 window.webkit.messageHandlers.loadModels.postMessage({});
@@ -599,28 +649,38 @@ function onWhisperStatus(hasBin, hasModel) {
 
 // ── Micrófono ─────────────────────────────────────────────────────────────────
 const micBtn = document.getElementById('mic-btn');
+const btn    = document.getElementById('btn');
 
-micBtn.addEventListener('mousedown', e => {
+micBtn.addEventListener('click', e => {
   e.preventDefault();
-  if (micState !== 'idle') return;
-  micState = 'recording';
-  micBtn.classList.add('recording');
-  micBtn.title = 'Suelta para transcribir';
-  window.webkit.messageHandlers.startRecording.postMessage({});
-});
-
-micBtn.addEventListener('mouseup', e => {
-  e.preventDefault();
-  if (micState !== 'recording') return;
-  micBtn.classList.remove('recording');
-  window.webkit.messageHandlers.stopRecording.postMessage({});
-});
-
-micBtn.addEventListener('mouseleave', e => {
-  if (micState === 'recording') {
+  if (micState === 'idle') {
+    // Empezar grabación
+    micState = 'recording';
+    micBtn.classList.add('recording');
+    micBtn.title = 'Clic para parar';
+    window.webkit.messageHandlers.startRecording.postMessage({});
+  } else if (micState === 'recording') {
+    // Parar grabación
     micBtn.classList.remove('recording');
+    micBtn.title = 'Clic para grabar';
     window.webkit.messageHandlers.stopRecording.postMessage({});
   }
+  // Si está transcribiendo, ignorar clics
+});
+
+btn.addEventListener('click', e => {
+  e.preventDefault();
+  if (streaming) {
+    // Stop Ollama
+    window.webkit.messageHandlers.stopStream.postMessage({});
+    streaming = false; busy = false;
+    if (currentBody) currentBody.classList.remove('cursor');
+    currentBody = null;
+    btn.textContent = '↵';
+    btn.classList.remove('stopping');
+    return;
+  }
+  send();
 });
 
 function onRecordingStarted() {
@@ -638,9 +698,7 @@ function onTranscription(text) {
   micState = 'idle';
   micBtn.classList.remove('recording', 'transcribing');
   micBtn.textContent = '🎙';
-  micBtn.title = 'Mantén pulsado para grabar';
   if (text && text.trim()) {
-    // Enviar directamente
     sendText(text.trim());
   }
 }
@@ -671,7 +729,9 @@ function appendToken(t) {
 
 function endStream() {
   if (currentBody) currentBody.classList.remove('cursor');
-  currentBody = null; busy = false;
+  currentBody = null; busy = false; streaming = false;
+  btn.textContent = '↵';
+  btn.classList.remove('stopping');
 }
 
 function sendText(text) {
@@ -680,7 +740,9 @@ function sendText(text) {
   addMsg('user').textContent = text;
   currentBody = addMsg('ai');
   currentBody.classList.add('cursor');
-  busy = true;
+  busy = true; streaming = true;
+  btn.textContent = '⏹';
+  btn.classList.add('stopping');
   window.webkit.messageHandlers.sendMessage.postMessage({prompt: text, model: model});
 }
 
@@ -692,7 +754,7 @@ function send() {
   sendText(text);
 }
 
-document.getElementById('btn').addEventListener('click', send);
+// btn listener handled above
 document.getElementById('inp').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   setTimeout(() => {

@@ -29,6 +29,7 @@ cat > "$APP/Contents/Info.plist" << 'PLIST'
   <key>CFBundleVersion</key><string>1.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSMicrophoneUsageDescription</key><string>OllamaChat necesita el micrófono para transcribir audio con Whisper.</string>
 </dict>
 </plist>
 PLIST
