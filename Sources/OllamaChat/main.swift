@@ -1,10 +1,12 @@
 import AppKit
 import Foundation
+import AVFoundation
 
 // ── Constantes ────────────────────────────────────────────────────────────────
 
-let OLLAMA_BASE = "http://localhost:11434"
-var currentModel = "llama3.2"
+let OLLAMA_BASE   = "http://localhost:11434"
+let WHISPER_BIN   = "/usr/local/bin/whisper-cli"   // brew install whisper-cpp
+let WHISPER_MODEL = NSHomeDirectory() + "/.ollama-chat/ggml-base.bin"
 
 // ── AppDelegate ───────────────────────────────────────────────────────────────
 
@@ -13,34 +15,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var chatWindow: ChatWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Sin icono en el Dock
         NSApp.setActivationPolicy(.accessory)
-
-        // Menubar icon
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
             button.title = "⬡"
             button.action = #selector(toggleChat)
             button.target = self
         }
-
-        // Menú
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Abrir chat", action: #selector(toggleChat), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Salir", action: #selector(quit), keyEquivalent: "q"))
         statusItem?.menu = menu
+
+        // Crear carpeta de datos y descargar modelo whisper si hace falta
+        setupWhisper()
     }
 
     @objc func toggleChat() {
-        if chatWindow == nil {
-            chatWindow = ChatWindow()
-        }
+        if chatWindow == nil { chatWindow = ChatWindow() }
         chatWindow?.showAndFocus()
     }
 
-    @objc func quit() {
-        NSApp.terminate(nil)
+    @objc func quit() { NSApp.terminate(nil) }
+
+    func setupWhisper() {
+        let dir = NSHomeDirectory() + "/.ollama-chat"
+        try? FileManager.default.createDirectory(atPath: dir,
+            withIntermediateDirectories: true)
+        // El modelo se descarga la primera vez que se usa el micrófono
     }
 }
 
@@ -62,8 +65,6 @@ class ChatWindow: NSObject, NSWindowDelegate {
         window.level = .floating
         window.center()
         window.isReleasedWhenClosed = false
-
-        // ★ CLAVE: excluir de screen sharing — API pública AppKit
         window.sharingType = .none
 
         webView = WKWebViewWrapper(frame: frame)
@@ -76,12 +77,192 @@ class ChatWindow: NSObject, NSWindowDelegate {
     func showAndFocus() {
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        // Reaplicar tras mostrar por si acaso
         window.sharingType = .none
     }
 
-    func windowWillClose(_ notification: Notification) {
-        // No destruir, solo ocultar
+    func windowWillClose(_ notification: Notification) {}
+}
+
+// ── Audio Recorder ────────────────────────────────────────────────────────────
+
+class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
+    private var session: AVCaptureSession?
+    private var audioFile: AVAudioFile?
+    private var audioEngine: AVAudioEngine?
+    private var inputNode: AVAudioInputNode?
+    var outputURL: URL?
+    var onDone: ((URL?) -> Void)?
+
+    func start() {
+        let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ollama_audio_\(Int(Date().timeIntervalSince1970)).wav")
+        outputURL = tmpURL
+
+        audioEngine = AVAudioEngine()
+        guard let engine = audioEngine else { return }
+
+        inputNode = engine.inputNode
+        guard let input = inputNode else { return }
+
+        let fmt = input.outputFormat(forBus: 0)
+
+        // Archivo WAV 16kHz mono (lo que espera whisper)
+        let settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: 16000.0,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false
+        ]
+
+        do {
+            audioFile = try AVAudioFile(forWriting: tmpURL, settings: settings)
+        } catch {
+            print("[audio] error creando archivo: \(error)")
+            return
+        }
+
+        input.installTap(onBus: 0, bufferSize: 4096, format: fmt) { [weak self] buffer, _ in
+            guard let self = self, let file = self.audioFile else { return }
+            // Convertir a 16kHz mono si hace falta
+            if let converted = self.convert(buffer: buffer, to: file.processingFormat) {
+                try? file.write(from: converted)
+            } else {
+                try? file.write(from: buffer)
+            }
+        }
+
+        do {
+            try engine.start()
+        } catch {
+            print("[audio] engine start error: \(error)")
+        }
+    }
+
+    func stop() {
+        inputNode?.removeTap(onBus: 0)
+        audioEngine?.stop()
+        audioEngine = nil
+        audioFile = nil  // flush
+        onDone?(outputURL)
+    }
+
+    private func convert(buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
+        guard buffer.format != format,
+              let converter = AVAudioConverter(from: buffer.format, to: format) else {
+            return nil
+        }
+        let ratio = format.sampleRate / buffer.format.sampleRate
+        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
+        guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
+        var error: NSError?
+        var inputDone = false
+        converter.convert(to: out, error: &error) { _, status in
+            if inputDone {
+                status.pointee = .noDataNow
+                return nil
+            }
+            status.pointee = .haveData
+            inputDone = true
+            return buffer
+        }
+        return error == nil ? out : nil
+    }
+}
+
+// ── Whisper transcription ─────────────────────────────────────────────────────
+
+func transcribe(audioURL: URL, completion: @escaping (String?) -> Void) {
+    // Verificar que whisper-cli existe
+    guard FileManager.default.fileExists(atPath: WHISPER_BIN) else {
+        // Intentar ruta alternativa de Homebrew arm64
+        let altBin = "/opt/homebrew/bin/whisper-cli"
+        if FileManager.default.fileExists(atPath: altBin) {
+            transcribeWith(bin: altBin, audioURL: audioURL, completion: completion)
+            return
+        }
+        completion(nil)
+        return
+    }
+    transcribeWith(bin: WHISPER_BIN, audioURL: audioURL, completion: completion)
+}
+
+func findWhisperModel() -> String? {
+    // Buscar en las ubicaciones estándar de whisper-cpp (Homebrew)
+    let candidates = [
+        "/opt/homebrew/share/whisper-cpp",
+        "/opt/homebrew/share/whisper-cpp/models",
+        "/usr/local/share/whisper-cpp",
+        "/usr/local/share/whisper-cpp/models",
+        NSHomeDirectory() + "/.cache/whisper",
+        NSHomeDirectory() + "/.ollama-chat",
+    ]
+    let preferred = ["ggml-base.en.bin", "ggml-base.bin", "ggml-small.bin",
+                     "ggml-tiny.bin", "ggml-medium.bin", "ggml-large.bin"]
+    for dir in candidates {
+        // Primero buscar modelos en orden de preferencia
+        for name in preferred {
+            let path = dir + "/" + name
+            if FileManager.default.fileExists(atPath: path) { return path }
+        }
+        // Luego cualquier ggml
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: dir) {
+            if let m = files.first(where: { $0.hasSuffix(".bin") && $0.contains("ggml") }) {
+                return dir + "/" + m
+            }
+        }
+    }
+    return nil
+}
+
+func transcribeWith(bin: String, audioURL: URL, completion: @escaping (String?) -> Void) {
+    guard let modelPath = findWhisperModel() else {
+        print("[whisper] no model found")
+        completion(nil)
+        return
+    }
+    print("[whisper] using model: \(modelPath)")
+
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: bin)
+    task.arguments = [
+        "--model", modelPath,
+        "--language", "auto",
+        "--output-txt",
+        "--no-prints",
+        "--file", audioURL.path
+    ]
+
+    let pipe = Pipe()
+    task.standardOutput = pipe
+    task.standardError = Pipe()
+
+    task.terminationHandler = { _ in
+        // whisper-cli escribe el resultado en archivo .txt junto al audio
+        let txtURL = audioURL.deletingPathExtension().appendingPathExtension("txt")
+        if let text = try? String(contentsOf: txtURL, encoding: .utf8) {
+            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\\[.*?\\]", with: "", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            try? FileManager.default.removeItem(at: txtURL)
+            try? FileManager.default.removeItem(at: audioURL)
+            completion(cleaned.isEmpty ? nil : cleaned)
+        } else {
+            // Intentar leer stdout
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let text = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            try? FileManager.default.removeItem(at: audioURL)
+            completion(text.isEmpty ? nil : text)
+        }
+    }
+
+    do {
+        try task.run()
+    } catch {
+        print("[whisper] error: \(error)")
+        completion(nil)
     }
 }
 
@@ -91,13 +272,13 @@ import WebKit
 
 class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     let view: WKWebView
-    var streamTask: URLSessionDataTask?
+    let recorder = AudioRecorder()
+    var isRecording = false
 
     init(frame: NSRect = .zero) {
         let config = WKWebViewConfiguration()
         let contentController = WKUserContentController()
         config.userContentController = contentController
-
         view = WKWebView(frame: frame, configuration: config)
         view.setValue(false, forKey: "drawsBackground")
 
@@ -105,21 +286,95 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
 
         contentController.add(self, name: "sendMessage")
         contentController.add(self, name: "loadModels")
+        contentController.add(self, name: "startRecording")
+        contentController.add(self, name: "stopRecording")
+        contentController.add(self, name: "checkWhisper")
 
         loadHTML()
     }
 
     func userContentController(_ userContentController: WKUserContentController,
                                 didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: String] else { return }
-
-        if message.name == "sendMessage",
-           let prompt = body["prompt"],
-           let model = body["model"] {
+        switch message.name {
+        case "sendMessage":
+            guard let body = message.body as? [String: String],
+                  let prompt = body["prompt"], let model = body["model"] else { return }
             streamResponse(prompt: prompt, model: model)
-        } else if message.name == "loadModels" {
+
+        case "loadModels":
             fetchModels()
+
+        case "checkWhisper":
+            checkWhisperInstall()
+
+        case "startRecording":
+            guard !isRecording else { return }
+            requestMicAndRecord()
+
+        case "stopRecording":
+            guard isRecording else { return }
+            isRecording = false
+            recorder.onDone = { [weak self] url in
+                guard let self = self, let url = url else {
+                    DispatchQueue.main.async {
+                        self?.view.evaluateJavaScript("onTranscription(null)", completionHandler: nil)
+                    }
+                    return
+                }
+                DispatchQueue.main.async {
+                    self.view.evaluateJavaScript("onTranscribing()", completionHandler: nil)
+                }
+                transcribe(audioURL: url) { [weak self] text in
+                    DispatchQueue.main.async {
+                        if let t = text {
+                            let escaped = t
+                                .replacingOccurrences(of: "\\", with: "\\\\")
+                                .replacingOccurrences(of: "'", with: "\\'")
+                            self?.view.evaluateJavaScript("onTranscription('\(escaped)')",
+                                completionHandler: nil)
+                        } else {
+                            self?.view.evaluateJavaScript("onTranscription(null)",
+                                completionHandler: nil)
+                        }
+                    }
+                }
+            }
+            recorder.stop()
+
+        default: break
         }
+    }
+
+    func requestMicAndRecord() {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized:
+            startRecording()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+                if granted { DispatchQueue.main.async { self?.startRecording() } }
+            }
+        default:
+            DispatchQueue.main.async {
+                self.view.evaluateJavaScript(
+                    "onMicError('Permiso de micrófono denegado. Actívalo en Ajustes del Sistema.')",
+                    completionHandler: nil)
+            }
+        }
+    }
+
+    func startRecording() {
+        isRecording = true
+        recorder.start()
+        view.evaluateJavaScript("onRecordingStarted()", completionHandler: nil)
+    }
+
+    func checkWhisperInstall() {
+        let bins = [WHISPER_BIN, "/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli"]
+        let found = bins.contains { FileManager.default.fileExists(atPath: $0) }
+        let hasModel = findWhisperModel() != nil
+        view.evaluateJavaScript(
+            "onWhisperStatus(\(found ? "true" : "false"), \(hasModel ? "true" : "false"))",
+            completionHandler: nil)
     }
 
     func fetchModels() {
@@ -142,7 +397,6 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         req.httpBody = try? JSONSerialization.data(withJSONObject: [
             "model": model, "prompt": prompt, "stream": true
         ])
-
         let session = URLSession(configuration: .default,
                                  delegate: StreamDelegate(webView: view),
                                  delegateQueue: nil)
@@ -160,37 +414,28 @@ class StreamDelegate: NSObject, URLSessionDataDelegate {
     let webView: WKWebView
     var buffer = Data()
 
-    init(webView: WKWebView) {
-        self.webView = webView
-    }
+    init(webView: WKWebView) { self.webView = webView }
 
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
                     didReceive data: Data) {
         buffer.append(data)
         let str = String(data: buffer, encoding: .utf8) ?? ""
         let lines = str.components(separatedBy: "\n")
-
         for (i, line) in lines.enumerated() {
-            guard !line.isEmpty else { continue }
-            guard i < lines.count - 1 else { break } // última línea puede estar incompleta
+            guard !line.isEmpty, i < lines.count - 1 else { continue }
             if let d = line.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
                let token = json["response"] as? String {
                 let escaped = token
                     .replacingOccurrences(of: "\\", with: "\\\\")
                     .replacingOccurrences(of: "`", with: "\\`")
-                let js = "appendToken(`\(escaped)`)"
                 DispatchQueue.main.async {
-                    self.webView.evaluateJavaScript(js, completionHandler: nil)
+                    self.webView.evaluateJavaScript("appendToken(`\(escaped)`)",
+                        completionHandler: nil)
                 }
             }
         }
-        // Guardar solo la última línea incompleta en buffer
-        if let last = lines.last, !last.isEmpty {
-            buffer = last.data(using: .utf8) ?? Data()
-        } else {
-            buffer = Data()
-        }
+        buffer = lines.last.flatMap { $0.isEmpty ? nil : $0.data(using: .utf8) } ?? Data()
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask,
@@ -207,8 +452,7 @@ func jsonString(_ arr: [String]) -> String {
     (try? String(data: JSONSerialization.data(withJSONObject: arr), encoding: .utf8)) ?? "[]"
 }
 
-func chatHTML() -> String {
-    return """
+func chatHTML() -> String { return """
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -219,7 +463,7 @@ func chatHTML() -> String {
 :root{
   --bg:#0d0d0f;--surface:#131316;--border:#1e1e23;
   --text:#d1d1d6;--muted:#3a3a44;--accent:#4ade80;
-  --user:#7dd3fc;--error:#f87171;
+  --user:#7dd3fc;--error:#f87171;--rec:#f87171;
   --font:'JetBrains Mono','Menlo',monospace;
 }
 html,body{height:100%;background:var(--bg);color:var(--text);
@@ -263,15 +507,25 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 .cursor::after{content:'▋';color:var(--accent);animation:blink .65s step-end infinite;margin-left:1px}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
 #bottom{border-top:1px solid var(--border);background:var(--surface);
-  padding:9px 14px;display:flex;align-items:flex-end;gap:8px;flex-shrink:0}
+  padding:9px 14px;display:flex;align-items:flex-end;gap:6px;flex-shrink:0}
 #inp{flex:1;background:transparent;border:none;color:var(--text);
   font-family:var(--font);font-size:12.5px;outline:none;resize:none;
   line-height:1.5;max-height:72px;overflow-y:auto;caret-color:var(--accent)}
 #inp::placeholder{color:var(--muted)}
-#btn{background:none;border:1px solid var(--border);color:var(--muted);
+.action-btn{background:none;border:1px solid var(--border);color:var(--muted);
   font-family:var(--font);font-size:13px;padding:3px 8px;border-radius:4px;
-  cursor:pointer;transition:all .15s;flex-shrink:0;margin-bottom:1px}
-#btn:hover{border-color:var(--accent);color:var(--accent)}
+  cursor:pointer;transition:all .15s;flex-shrink:0;margin-bottom:1px;line-height:1}
+.action-btn:hover{border-color:var(--accent);color:var(--accent)}
+#mic-btn{font-size:14px;padding:3px 7px}
+#mic-btn.recording{border-color:var(--rec);color:var(--rec);
+  animation:recpulse 1s ease-in-out infinite}
+#mic-btn.transcribing{border-color:var(--muted);color:var(--muted);cursor:default}
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.4)}
+  50%{box-shadow:0 0 0 4px rgba(248,113,113,0)}}
+#whisper-hint{font-size:10px;color:var(--muted);padding:4px 14px 0;
+  display:none;letter-spacing:.03em}
+#whisper-hint a{color:var(--accent);text-decoration:none}
+#whisper-hint.visible{display:block}
 </style>
 </head>
 <body>
@@ -287,24 +541,26 @@ html,body{height:100%;background:var(--bg);color:var(--text);
     </div>
   </div>
   <div id="msgs"></div>
+  <div id="whisper-hint"></div>
   <div id="bottom">
     <textarea id="inp" placeholder="Mensaje… (Enter)" rows="1"></textarea>
-    <button id="btn">↵</button>
+    <button id="mic-btn" class="action-btn" title="Mantén pulsado para grabar">🎙</button>
+    <button id="btn" class="action-btn">↵</button>
   </div>
 </div>
 <script>
 let model = 'llama3.2', busy = false, currentBody = null;
+let micState = 'idle'; // idle | recording | transcribing
+let whisperOk = false;
 
 window.webkit.messageHandlers.loadModels.postMessage({});
+window.webkit.messageHandlers.checkWhisper.postMessage({});
 
+// ── Modelo ────────────────────────────────────────────────────────────────────
 const modelBtn      = document.getElementById('model-btn');
 const modelName     = document.getElementById('model-name');
 const modelDropdown = document.getElementById('model-dropdown');
-
-modelBtn.addEventListener('click', e => {
-  e.stopPropagation();
-  modelDropdown.classList.toggle('open');
-});
+modelBtn.addEventListener('click', e => { e.stopPropagation(); modelDropdown.classList.toggle('open'); });
 document.addEventListener('click', () => modelDropdown.classList.remove('open'));
 
 function receiveModels(models) {
@@ -318,8 +574,7 @@ function receiveModels(models) {
     div.className = 'model-opt' + (m === model ? ' active' : '');
     div.textContent = m;
     div.addEventListener('click', e => {
-      e.stopPropagation();
-      model = m;
+      e.stopPropagation(); model = m;
       modelName.textContent = m.split(':')[0];
       modelDropdown.querySelectorAll('.model-opt').forEach(el =>
         el.classList.toggle('active', el.textContent === m));
@@ -329,6 +584,75 @@ function receiveModels(models) {
   });
 }
 
+// ── Whisper status ────────────────────────────────────────────────────────────
+function onWhisperStatus(hasBin, hasModel) {
+  whisperOk = hasBin && hasModel;
+  const hint = document.getElementById('whisper-hint');
+  if (!hasBin) {
+    hint.innerHTML = '⚠ whisper-cli no encontrado. Instala: <a href="#">brew install whisper-cpp</a>';
+    hint.classList.add('visible');
+  } else if (!hasModel) {
+    hint.innerHTML = '⚠ Modelo no encontrado. Ejecuta: <code>whisper-download-model base</code>';
+    hint.classList.add('visible');
+  }
+}
+
+// ── Micrófono ─────────────────────────────────────────────────────────────────
+const micBtn = document.getElementById('mic-btn');
+
+micBtn.addEventListener('mousedown', e => {
+  e.preventDefault();
+  if (micState !== 'idle') return;
+  micState = 'recording';
+  micBtn.classList.add('recording');
+  micBtn.title = 'Suelta para transcribir';
+  window.webkit.messageHandlers.startRecording.postMessage({});
+});
+
+micBtn.addEventListener('mouseup', e => {
+  e.preventDefault();
+  if (micState !== 'recording') return;
+  micBtn.classList.remove('recording');
+  window.webkit.messageHandlers.stopRecording.postMessage({});
+});
+
+micBtn.addEventListener('mouseleave', e => {
+  if (micState === 'recording') {
+    micBtn.classList.remove('recording');
+    window.webkit.messageHandlers.stopRecording.postMessage({});
+  }
+});
+
+function onRecordingStarted() {
+  micState = 'recording';
+}
+
+function onTranscribing() {
+  micState = 'transcribing';
+  micBtn.classList.remove('recording');
+  micBtn.classList.add('transcribing');
+  micBtn.textContent = '⏳';
+}
+
+function onTranscription(text) {
+  micState = 'idle';
+  micBtn.classList.remove('recording', 'transcribing');
+  micBtn.textContent = '🎙';
+  micBtn.title = 'Mantén pulsado para grabar';
+  if (text && text.trim()) {
+    // Enviar directamente
+    sendText(text.trim());
+  }
+}
+
+function onMicError(msg) {
+  micState = 'idle';
+  micBtn.classList.remove('recording', 'transcribing');
+  micBtn.textContent = '🎙';
+  addMsg('err').textContent = msg;
+}
+
+// ── Chat ──────────────────────────────────────────────────────────────────────
 function addMsg(role) {
   const c = document.getElementById('msgs'), d = document.createElement('div');
   d.className = 'msg ' + role;
@@ -350,17 +674,22 @@ function endStream() {
   currentBody = null; busy = false;
 }
 
-function send() {
-  if (busy) return;
-  const inp = document.getElementById('inp'), text = inp.value.trim();
-  if (!text) return;
-  inp.value = ''; inp.style.height = 'auto';
+function sendText(text) {
+  if (busy || !text) return;
   modelDropdown.classList.remove('open');
   addMsg('user').textContent = text;
   currentBody = addMsg('ai');
   currentBody.classList.add('cursor');
   busy = true;
   window.webkit.messageHandlers.sendMessage.postMessage({prompt: text, model: model});
+}
+
+function send() {
+  const inp = document.getElementById('inp');
+  const text = inp.value.trim();
+  if (!text) return;
+  inp.value = ''; inp.style.height = 'auto';
+  sendText(text);
 }
 
 document.getElementById('btn').addEventListener('click', send);
@@ -374,9 +703,7 @@ document.getElementById('inp').addEventListener('keydown', e => {
 </script>
 </body>
 </html>
-"""
-}
-
+""" }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
