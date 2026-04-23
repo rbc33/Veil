@@ -1,1 +1,1 @@
-# invisible-ollama-client
+chmod +x ./build.sh
