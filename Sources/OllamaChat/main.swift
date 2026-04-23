@@ -225,18 +225,29 @@ func chatHTML() -> String {
 html,body{height:100%;background:var(--bg);color:var(--text);
   font-family:var(--font);font-size:12.5px;line-height:1.6;
   overflow:hidden;-webkit-font-smoothing:antialiased}
-#app{display:flex;flex-direction:column;height:100vh}
+#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
 #header{display:flex;align-items:center;justify-content:space-between;
   padding:9px 14px;border-bottom:1px solid var(--border);
   background:var(--surface);-webkit-app-region:drag;user-select:none;flex-shrink:0}
 #dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
   box-shadow:0 0 5px var(--accent);animation:pulse 2.5s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-#model-wrap{display:flex;align-items:center;gap:8px}
-#model-sel{background:transparent;border:none;color:var(--text);
+#model-wrap{position:relative;display:flex;align-items:center;gap:8px}
+#model-btn{background:transparent;border:none;color:var(--muted);
   font-family:var(--font);font-size:11.5px;cursor:pointer;outline:none;
-  -webkit-app-region:no-drag}
-#model-sel option{background:#18181c}
+  -webkit-app-region:no-drag;padding:2px 6px;border-radius:3px;
+  display:flex;align-items:center;gap:5px;transition:color .15s}
+#model-btn:hover{color:var(--text)}
+#model-name{color:var(--text)}
+#model-dropdown{display:none;position:fixed;top:44px;left:14px;
+  background:#1a1a1e;border:1px solid var(--border);border-radius:6px;
+  min-width:200px;z-index:999;overflow-y:auto;max-height:calc(100vh - 60px);
+  box-shadow:0 8px 24px rgba(0,0,0,.7)}
+#model-dropdown.open{display:block}
+.model-opt{padding:8px 14px;font-size:11.5px;cursor:pointer;color:var(--text);
+  font-family:var(--font);transition:background .1s;white-space:nowrap}
+.model-opt:hover{background:var(--border)}
+.model-opt.active{color:var(--accent)}
 #msgs{flex:1;overflow-y:auto;padding:14px;scroll-behavior:smooth}
 #msgs::-webkit-scrollbar{width:3px}
 #msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
@@ -268,7 +279,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);
   <div id="header">
     <div id="model-wrap">
       <div id="dot"></div>
-      <select id="model-sel"><option>cargando…</option></select>
+      <button id="model-btn">
+        <span id="model-name">cargando…</span>
+        <span style="color:var(--muted);font-size:9px">▾</span>
+      </button>
+      <div id="model-dropdown"></div>
     </div>
   </div>
   <div id="msgs"></div>
@@ -282,24 +297,43 @@ let model = 'llama3.2', busy = false, currentBody = null;
 
 window.webkit.messageHandlers.loadModels.postMessage({});
 
+const modelBtn      = document.getElementById('model-btn');
+const modelName     = document.getElementById('model-name');
+const modelDropdown = document.getElementById('model-dropdown');
+
+modelBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  modelDropdown.classList.toggle('open');
+});
+document.addEventListener('click', () => modelDropdown.classList.remove('open'));
+
 function receiveModels(models) {
-  const sel = document.getElementById('model-sel');
-  sel.innerHTML = '';
+  if (!models.length) return;
+  const match = models.find(m => m === model || m.startsWith(model.split(':')[0]));
+  model = match || models[0];
+  modelName.textContent = model.split(':')[0];
+  modelDropdown.innerHTML = '';
   models.forEach(m => {
-    const o = document.createElement('option');
-    o.value = o.textContent = m;
-    if (m === model || m.startsWith(model.split(':')[0])) { o.selected = true; model = m; }
-    sel.appendChild(o);
+    const div = document.createElement('div');
+    div.className = 'model-opt' + (m === model ? ' active' : '');
+    div.textContent = m;
+    div.addEventListener('click', e => {
+      e.stopPropagation();
+      model = m;
+      modelName.textContent = m.split(':')[0];
+      modelDropdown.querySelectorAll('.model-opt').forEach(el =>
+        el.classList.toggle('active', el.textContent === m));
+      modelDropdown.classList.remove('open');
+    });
+    modelDropdown.appendChild(div);
   });
-  if (!sel.options.length) { const o = document.createElement('option'); o.textContent = model; sel.appendChild(o); }
-  sel.addEventListener('change', e => model = e.target.value);
 }
 
 function addMsg(role) {
   const c = document.getElementById('msgs'), d = document.createElement('div');
-  d.className = `msg ${role}`;
+  d.className = 'msg ' + role;
   const L = {user:'tú', ai:model.split(':')[0], err:'error'};
-  d.innerHTML = `<div class="lbl">${L[role]||role}</div><div class="body"></div>`;
+  d.innerHTML = '<div class="lbl">' + (L[role]||role) + '</div><div class="body"></div>';
   c.appendChild(d); c.scrollTop = c.scrollHeight;
   return d.querySelector('.body');
 }
@@ -321,6 +355,7 @@ function send() {
   const inp = document.getElementById('inp'), text = inp.value.trim();
   if (!text) return;
   inp.value = ''; inp.style.height = 'auto';
+  modelDropdown.classList.remove('open');
   addMsg('user').textContent = text;
   currentBody = addMsg('ai');
   currentBody.classList.add('cursor');
@@ -341,6 +376,7 @@ document.getElementById('inp').addEventListener('keydown', e => {
 </html>
 """
 }
+
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
