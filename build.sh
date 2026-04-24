@@ -19,6 +19,7 @@ mkdir -p "$APP/Contents/MacOS"
 mkdir -p "$APP/Contents/Resources"
 
 cp "$BINARY" "$APP/Contents/MacOS/Veil"
+[ -f "$DIR/Veil.icns" ] && cp "$DIR/Veil.icns" "$APP/Contents/Resources/Veil.icns"
 
 cat > "$APP/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -31,6 +32,7 @@ cat > "$APP/Contents/Info.plist" << 'PLIST'
   <key>CFBundleName</key><string>Veil</string>
   <key>CFBundleVersion</key><string>1.0.0</string>
   <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleIconFile</key><string>Veil</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Veil needs the microphone to transcribe audio with Whisper.</string>
