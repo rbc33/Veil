@@ -33,6 +33,119 @@ struct BackendConfig {
     }
 }
 
+// ── PrivateDropdown ───────────────────────────────────────────────────────────
+
+class PrivateDropdown: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+    let button: NSButton
+    private let panel: NSPanel
+    private let tableView = NSTableView()
+    private let scrollView = NSScrollView()
+
+    var items: [String] = [] {
+        didSet {
+            DispatchQueue.main.async { [weak self] in
+                self?.tableView.reloadData()
+            }
+        }
+    }
+    var selected: String = "" { didSet { updateButtonTitle() } }
+    var onSelect: ((String) -> Void)?
+
+    override init() {
+        button = NSButton(title: "—  ▾", target: nil, action: nil)
+        button.bezelStyle = .rounded
+        button.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        button.frame = NSRect(x: 0, y: 0, width: 220, height: 24)
+
+        let col = NSTableColumn(identifier: .init("item"))
+        col.width = 240
+        tableView.addTableColumn(col)
+        tableView.headerView = nil
+        tableView.rowHeight = 22
+        tableView.backgroundColor = .clear
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
+        tableView.allowsEmptySelection = false
+        tableView.usesAlternatingRowBackgroundColors = false
+
+        scrollView.documentView = tableView
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.drawsBackground = false
+        scrollView.autoresizingMask = [.width, .height]
+
+        panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: 250, height: 200),
+            styleMask: [.borderless],
+            backing: .buffered, defer: false)
+        panel.sharingType = .none
+        panel.backgroundColor = NSColor.controlBackgroundColor
+        panel.level = .popUpMenu
+        panel.hasShadow = true
+        panel.isMovable = false
+        panel.isReleasedWhenClosed = false
+
+        super.init()
+        panel.contentView = scrollView
+        tableView.dataSource = self
+        tableView.delegate = self
+        tableView.target = self
+        tableView.action = #selector(rowClicked)
+        button.target = self
+        button.action = #selector(toggle)
+    }
+
+    private func updateButtonTitle() {
+        button.title = (selected.isEmpty ? "—" : selected) + "  ▾"
+    }
+
+    @objc func toggle() {
+        if panel.isVisible { panel.orderOut(nil); return }
+        tableView.reloadData()
+        guard let win = button.window else { return }
+        let bf = button.convert(button.bounds, to: nil)
+        let sf = win.convertToScreen(bf)
+        let rowH: CGFloat = 22
+        let h = min(CGFloat(max(items.count, 1)) * rowH + 2, 220)
+        let w = max(sf.width, 260)
+        panel.setFrame(NSRect(x: sf.minX, y: sf.minY - h, width: w, height: h), display: true)
+        tableView.frame = NSRect(x: 0, y: 0, width: w, height: CGFloat(items.count) * rowH)
+        if let idx = items.firstIndex(of: selected) {
+            tableView.selectRowIndexes(IndexSet(integer: idx), byExtendingSelection: false)
+            tableView.scrollRowToVisible(idx)
+        }
+        win.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func rowClicked() {
+        let idx = tableView.clickedRow
+        guard idx >= 0, idx < items.count else { return }
+        selected = items[idx]
+        onSelect?(selected)
+        close()
+    }
+
+    func close() {
+        if let parent = panel.parent { parent.removeChildWindow(panel) }
+        panel.orderOut(nil)
+    }
+
+    func numberOfRows(in tableView: NSTableView) -> Int { items.count }
+
+    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        let tf = NSTextField(labelWithString: items[row])
+        tf.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        tf.lineBreakMode = .byTruncatingMiddle
+        tf.identifier = .init("cell")
+        return tf
+    }
+
+    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+        let v = NSTableRowView()
+        return v
+    }
+}
+
 // ── Whisper ───────────────────────────────────────────────────────────────────
 
 let WHISPER_BIN = "/usr/local/bin/whisper-cli"
@@ -102,23 +215,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Cancel")
 
         // Stack view
-        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 170))
+        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 260))
         stack.orientation = .vertical
         stack.alignment   = .left
         stack.spacing     = 10
 
-        // Backend type selector
+        // Backend type selector (NSSegmentedControl — no popup window)
         let typeRow = NSStackView()
         typeRow.orientation = .horizontal
         typeRow.spacing = 8
         let typeLabel = NSTextField(labelWithString: "Backend:")
         typeLabel.frame.size.width = 70
-        let typeSel = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 270, height: 24))
-        typeSel.addItem(withTitle: "Ollama")
-        typeSel.addItem(withTitle: "OpenAI-compatible (NIM, llama.cpp, LM Studio…)")
-        typeSel.selectItem(at: cfg.type == .ollama ? 0 : 1)
+        let typeSeg = NSSegmentedControl(labels: ["Ollama", "OpenAI-compatible"], trackingMode: .selectOne, target: nil, action: nil)
+        typeSeg.selectedSegment = cfg.type == .ollama ? 0 : 1
         typeRow.addArrangedSubview(typeLabel)
-        typeRow.addArrangedSubview(typeSel)
+        typeRow.addArrangedSubview(typeSeg)
 
         // Quick-fill checkboxes
         let nimRow = NSStackView()
@@ -151,14 +262,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // When NIM checkbox toggled, update URL and type fields
         class NimHandler: NSObject {
             weak var urlField: NSTextField?
-            weak var typeSel: NSPopUpButton?
+            weak var typeSeg: NSSegmentedControl?
             weak var check: NSButton?
             weak var otherCheck: NSButton?
             @objc func handle() {
                 guard let check = check else { return }
                 if check.state == .on {
                     urlField?.stringValue = "https://integrate.api.nvidia.com/v1"
-                    typeSel?.selectItem(at: 1)
+                    typeSeg?.selectedSegment = 1
                     otherCheck?.state = .off
                 } else if urlField?.stringValue == "https://integrate.api.nvidia.com/v1" {
                     urlField?.stringValue = ""
@@ -167,7 +278,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let nimHandler = NimHandler()
         nimHandler.urlField = urlField
-        nimHandler.typeSel  = typeSel
+        nimHandler.typeSeg  = typeSeg
         nimHandler.check    = nimCheck
         objc_setAssociatedObject(nimCheck, "nimHandler", nimHandler, .OBJC_ASSOCIATION_RETAIN)
         nimCheck.target = nimHandler
@@ -175,14 +286,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         class OAIHandler: NSObject {
             weak var urlField: NSTextField?
-            weak var typeSel: NSPopUpButton?
+            weak var typeSeg: NSSegmentedControl?
             weak var check: NSButton?
             weak var otherCheck: NSButton?
             @objc func handle() {
                 guard let check = check else { return }
                 if check.state == .on {
                     urlField?.stringValue = "https://api.openai.com/v1"
-                    typeSel?.selectItem(at: 1)
+                    typeSeg?.selectedSegment = 1
                     otherCheck?.state = .off
                 } else if urlField?.stringValue == "https://api.openai.com/v1" {
                     urlField?.stringValue = ""
@@ -191,14 +302,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let oaiHandler = OAIHandler()
         oaiHandler.urlField    = urlField
-        oaiHandler.typeSel     = typeSel
+        oaiHandler.typeSeg     = typeSeg
         oaiHandler.check       = oaiCheck
         oaiHandler.otherCheck  = nimCheck
         objc_setAssociatedObject(oaiCheck, "oaiHandler", oaiHandler, .OBJC_ASSOCIATION_RETAIN)
         oaiCheck.target = oaiHandler
         oaiCheck.action = #selector(OAIHandler.handle)
 
-        // Make NIM uncheck OpenAI when selected
         nimHandler.otherCheck = oaiCheck
 
         // API key field
@@ -214,32 +324,148 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         keyRow.addArrangedSubview(keyLabel)
         keyRow.addArrangedSubview(keyField)
 
+        // Test + models handler
+        class BackendTestHandler: NSObject {
+            weak var urlField: NSTextField?
+            weak var keyField: NSSecureTextField?
+            weak var typeSeg: NSSegmentedControl?
+            weak var statusLbl: NSTextField?
+            var modelPicker: PrivateDropdown?
+
+            @objc func test() {
+                guard let url = urlField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
+                      let status = statusLbl else { return }
+                let apiType = typeSeg?.selectedSegment ?? 0
+                let apiKey  = keyField?.stringValue ?? ""
+                status.textColor   = .secondaryLabelColor
+                status.stringValue = "Testing…"
+                let endpoint = apiType == 0 ? "\(url)/api/tags" : "\(url)/models"
+                guard let reqURL = URL(string: endpoint) else {
+                    status.stringValue = "✗ Invalid URL"; status.textColor = .systemRed; return
+                }
+                var req = URLRequest(url: reqURL, timeoutInterval: 5)
+                if !apiKey.isEmpty { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
+                URLSession.shared.dataTask(with: req) { _, response, error in
+                    DispatchQueue.main.async {
+                        if let e = error {
+                            status.stringValue = "✗ \(e.localizedDescription)"; status.textColor = .systemRed
+                        } else if let http = response as? HTTPURLResponse, http.statusCode < 300 {
+                            status.stringValue = "✓ Connected"; status.textColor = .systemGreen
+                        } else {
+                            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+                            status.stringValue = "✗ HTTP \(code)"; status.textColor = .systemRed
+                        }
+                    }
+                }.resume()
+            }
+
+            @objc func refresh() {
+                guard let url = urlField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
+                      let picker = modelPicker else { return }
+                let apiType = typeSeg?.selectedSegment ?? 0
+                let apiKey  = keyField?.stringValue ?? ""
+                picker.items = ["Loading…"]
+                let endpoint = apiType == 0 ? "\(url)/api/tags" : "\(url)/models"
+                guard let reqURL = URL(string: endpoint) else { picker.items = ["Invalid URL"]; return }
+                var req = URLRequest(url: reqURL, timeoutInterval: 5)
+                if !apiKey.isEmpty { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
+                URLSession.shared.dataTask(with: req) { data, _, _ in
+                    var names: [String] = []
+                    if let data = data {
+                        if apiType == 0 {
+                            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let models = json["models"] as? [[String: Any]] {
+                                names = models.compactMap { $0["name"] as? String }
+                            }
+                        } else {
+                            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let models = json["data"] as? [[String: Any]] {
+                                names = models.compactMap { $0["id"] as? String }.sorted()
+                            }
+                        }
+                    }
+                    DispatchQueue.main.async {
+                        picker.items = names.isEmpty ? ["No models found"] : names
+                        if picker.selected.isEmpty, let first = names.first { picker.selected = first }
+                    }
+                }.resume()
+            }
+        }
+
+        // Test row
+        let testRow = NSStackView()
+        testRow.orientation = .horizontal
+        testRow.spacing = 8
+        let testBtn = NSButton(title: "Test", target: nil, action: nil)
+        testBtn.bezelStyle = .rounded
+        testBtn.font = NSFont.systemFont(ofSize: 11)
+        let statusLbl = NSTextField(labelWithString: "")
+        statusLbl.font = NSFont.systemFont(ofSize: 11)
+        statusLbl.textColor = .secondaryLabelColor
+        testRow.addArrangedSubview(testBtn)
+        testRow.addArrangedSubview(statusLbl)
+
+        // Models row — custom NSPanel dropdown (sharingType = .none, not visible in screen share)
+        let modelPicker = PrivateDropdown()
+        modelPicker.selected = UserDefaults.standard.string(forKey: "selectedModel") ?? ""
+        modelPicker.onSelect = { model in
+            UserDefaults.standard.set(model, forKey: "selectedModel")
+        }
+        let modelsRow = NSStackView()
+        modelsRow.orientation = .horizontal
+        modelsRow.spacing = 8
+        let modelsLabel = NSTextField(labelWithString: "Model:")
+        modelsLabel.frame.size.width = 70
+        let refreshBtn = NSButton(title: "↺", target: nil, action: nil)
+        refreshBtn.bezelStyle = .rounded
+        refreshBtn.font = NSFont.systemFont(ofSize: 13)
+        modelsRow.addArrangedSubview(modelsLabel)
+        modelsRow.addArrangedSubview(modelPicker.button)
+        modelsRow.addArrangedSubview(refreshBtn)
+        objc_setAssociatedObject(stack, "modelPicker", modelPicker, .OBJC_ASSOCIATION_RETAIN)
+
+        let testHandler = BackendTestHandler()
+        testHandler.urlField   = urlField
+        testHandler.keyField   = keyField
+        testHandler.typeSeg    = typeSeg
+        testHandler.statusLbl  = statusLbl
+        testHandler.modelPicker = modelPicker
+        objc_setAssociatedObject(stack, "testHandler", testHandler, .OBJC_ASSOCIATION_RETAIN)
+        testBtn.target    = testHandler
+        testBtn.action    = #selector(BackendTestHandler.test)
+        refreshBtn.target = testHandler
+        refreshBtn.action = #selector(BackendTestHandler.refresh)
+        testHandler.refresh()
+
         // Hint
         let hint = NSTextField(labelWithString: "")
         hint.textColor = .secondaryLabelColor
         hint.font = NSFont.systemFont(ofSize: 10)
-        hint.stringValue = backenHint(typeSel.indexOfSelectedItem)
+        hint.stringValue = backenHint(typeSeg.selectedSegment)
         hint.maximumNumberOfLines = 2
         hint.lineBreakMode = .byWordWrapping
         hint.frame.size.width = 360
 
-        typeSel.target = hint
-        // Update hint on change
-        let obs = typeSel.observe(\.indexOfSelectedItem) { sel, _ in
-            hint.stringValue = self.backenHint(sel.indexOfSelectedItem)
+        let obs = typeSeg.observe(\.selectedSegment) { seg, _ in
+            hint.stringValue = self.backenHint(seg.selectedSegment)
         }
 
         stack.addArrangedSubview(typeRow)
         stack.addArrangedSubview(nimRow)
         stack.addArrangedSubview(urlRow)
         stack.addArrangedSubview(keyRow)
+        stack.addArrangedSubview(testRow)
+        stack.addArrangedSubview(modelsRow)
         stack.addArrangedSubview(hint)
         alert.accessoryView = stack
         alert.window.initialFirstResponder = urlField
+        alert.window.sharingType = .none
 
-        if alert.runModal() == .alertFirstButtonReturn {
+        let result = alert.runModal()
+        modelPicker.close()
+        if result == .alertFirstButtonReturn {
             var newCfg = BackendConfig(
-                type:   typeSel.indexOfSelectedItem == 0 ? .ollama : .openai,
+                type:   typeSeg.selectedSegment == 0 ? .ollama : .openai,
                 url:    urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
                 apiKey: keyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             )
@@ -261,27 +487,67 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func quit() { NSApp.terminate(nil) }
 }
 
+// ── MovableWindow ─────────────────────────────────────────────────────────────
+
+class MovableWindow: NSWindow {
+    private var dragging = false
+    private let headerHeight: CGFloat = 38
+
+    override func sendEvent(_ event: NSEvent) {
+        let h = contentView?.frame.height ?? frame.height
+        let inHeader = event.locationInWindow.y >= h - headerHeight
+        switch event.type {
+        case .leftMouseDown:
+            dragging = inHeader
+        case .leftMouseUp:
+            dragging = false
+        case .leftMouseDragged where dragging:
+            let o = frame.origin
+            setFrameOrigin(NSPoint(x: o.x + event.deltaX, y: o.y - event.deltaY))
+            return
+        default: break
+        }
+        super.sendEvent(event)
+    }
+}
+
 // ── ChatWindow ────────────────────────────────────────────────────────────────
 
 class ChatWindow: NSObject, NSWindowDelegate {
-    let window: NSWindow
+    let window: MovableWindow
     let webView: WKWebViewWrapper
 
     override init() {
         let frame = NSRect(x: 0, y: 0, width: 460, height: 620)
-        window = NSWindow(
+        window = MovableWindow(
             contentRect: frame,
-            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+            styleMask: [.titled, .closable, .resizable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = ""
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.standardWindowButton(.closeButton)?.isHidden    = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden     = true
         window.level = .floating
         window.center()
         window.isReleasedWhenClosed = false
         window.sharingType = .none
-        webView = WKWebViewWrapper(frame: frame)
-        window.contentView = webView.view
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
+
+        let visualEffect = NSVisualEffectView(frame: frame)
+        visualEffect.material = .hudWindow
+        visualEffect.blendingMode = .behindWindow
+        visualEffect.state = .active
+
+        webView = WKWebViewWrapper(frame: visualEffect.bounds)
+        webView.view.autoresizingMask = [.width, .height]
+        visualEffect.addSubview(webView.view)
+        window.contentView = visualEffect
         super.init()
         window.delegate = self
     }
@@ -411,6 +677,30 @@ func transcribe(audioURL: URL, completion: @escaping (String?) -> Void) {
     do { try task.run() } catch { print("[whisper] \(error)"); completion(nil) }
 }
 
+// ── Screen capture ────────────────────────────────────────────────────────────
+
+func captureScreenBase64(maxWidth: Int = 1440) -> String? {
+    // Try capturing directly first — CGPreflightScreenCaptureAccess() gives false
+    // negatives after ad-hoc re-signing (each build changes the binary hash).
+    let cg = CGWindowListCreateImage(.infinite, .optionOnScreenOnly, kCGNullWindowID, .bestResolution)
+    if cg == nil {
+        // Capture failed: request permission and let the user retry.
+        if !CGPreflightScreenCaptureAccess() { CGRequestScreenCaptureAccess() }
+        return nil
+    }
+    guard let cg = cg else { return nil }
+    let w = cg.width, h = cg.height
+    let scale = w > maxWidth ? Double(maxWidth) / Double(w) : 1.0
+    let tw = max(1, Int(Double(w) * scale)), th = max(1, Int(Double(h) * scale))
+    guard let ctx = CGContext(data: nil, width: tw, height: th, bitsPerComponent: 8, bytesPerRow: 0,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: tw, height: th))
+    guard let resized = ctx.makeImage() else { return nil }
+    let rep = NSBitmapImageRep(cgImage: resized)
+    guard let png = rep.representation(using: .png, properties: [:]) else { return nil }
+    return png.base64EncodedString()
+}
+
 // ── WKWebViewWrapper ──────────────────────────────────────────────────────────
 
 class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
@@ -418,6 +708,7 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     let recorder = AudioRecorder()
     var isRecording = false
     var currentStreamSession: URLSession?
+    var pendingScreenshot: String? = nil
 
     init(frame: NSRect = .zero) {
         let config = WKWebViewConfiguration()
@@ -426,7 +717,7 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         view = WKWebView(frame: frame, configuration: config)
         view.setValue(false, forKey: "drawsBackground")
         super.init()
-        for name in ["sendMessage","loadModels","startRecording","stopRecording","stopStream","checkWhisper"] {
+        for name in ["sendMessage","loadModels","startRecording","stopRecording","stopStream","checkWhisper","closeWindow","captureScreen","clearScreenshot"] {
             cc.add(self, name: name)
         }
         loadHTML()
@@ -437,12 +728,27 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         case "sendMessage":
             guard let body = message.body as? [String: String],
                   let prompt = body["prompt"], let model = body["model"] else { return }
-            streamResponse(prompt: prompt, model: model)
+            let img = pendingScreenshot; pendingScreenshot = nil
+            streamResponse(prompt: prompt, model: model, image: img)
+        case "captureScreen":
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                guard let self = self else { return }
+                if let b64 = captureScreenBase64() {
+                    self.pendingScreenshot = b64
+                    DispatchQueue.main.async { self.view.evaluateJavaScript("onScreenshotCaptured()", completionHandler: nil) }
+                } else {
+                    DispatchQueue.main.async { self.view.evaluateJavaScript("onScreenshotError()", completionHandler: nil) }
+                }
+            }
+        case "clearScreenshot":
+            pendingScreenshot = nil
         case "loadModels":   fetchModels()
         case "checkWhisper": checkWhisperInstall()
         case "startRecording":
             guard !isRecording else { return }
             requestMicAndRecord()
+        case "closeWindow":
+            DispatchQueue.main.async { self.view.window?.performClose(nil) }
         case "stopStream":
             currentStreamSession?.invalidateAndCancel()
             currentStreamSession = nil
@@ -539,33 +845,43 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
 
     // ── Stream response ───────────────────────────────────────────────────────
 
-    func streamResponse(prompt: String, model: String) {
+    func streamResponse(prompt: String, model: String, image: String? = nil) {
         let cfg = BackendConfig.current
         switch cfg.type {
-        case .ollama: streamOllama(prompt: prompt, model: model, cfg: cfg)
-        case .openai: streamOpenAI(prompt: prompt, model: model, cfg: cfg)
+        case .ollama: streamOllama(prompt: prompt, model: model, cfg: cfg, image: image)
+        case .openai: streamOpenAI(prompt: prompt, model: model, cfg: cfg, image: image)
         }
     }
 
-    func streamOllama(prompt: String, model: String, cfg: BackendConfig) {
+    func streamOllama(prompt: String, model: String, cfg: BackendConfig, image: String? = nil) {
         guard let url = URL(string: "\(cfg.url)/api/generate") else { return }
+        var body: [String: Any] = ["model": model, "prompt": prompt, "stream": true]
+        if let img = image { body["images"] = [img] }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "prompt": prompt, "stream": true])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
         startStream(req: req, parser: OllamaStreamParser())
     }
 
-    func streamOpenAI(prompt: String, model: String, cfg: BackendConfig) {
+    func streamOpenAI(prompt: String, model: String, cfg: BackendConfig, image: String? = nil) {
         guard let url = URL(string: "\(cfg.url)/chat/completions") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !cfg.apiKey.isEmpty { req.setValue("Bearer \(cfg.apiKey)", forHTTPHeaderField: "Authorization") }
+        let content: Any
+        if let img = image {
+            content = [
+                ["type": "text", "text": prompt],
+                ["type": "image_url", "image_url": ["url": "data:image/png;base64,\(img)"]]
+            ]
+        } else {
+            content = prompt
+        }
         req.httpBody = try? JSONSerialization.data(withJSONObject: [
-            "model": model,
-            "stream": true,
-            "messages": [["role": "user", "content": prompt]]
+            "model": model, "stream": true,
+            "messages": [["role": "user", "content": content]]
         ])
         startStream(req: req, parser: OpenAIStreamParser())
     }
@@ -664,25 +980,30 @@ func chatHTML() -> String { return """
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap');
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0d0d0f;--surface:#131316;--border:#1e1e23;
-  --text:#d1d1d6;--muted:#3a3a44;--accent:#4ade80;
+  --bg:rgba(28,30,36,0.55);--surface:rgba(41,44,51,0.7);--border:rgba(255,255,255,0.08);
+  --text:#d1d1d6;--muted:#6b6b7a;--accent:#4ade80;
   --user:#7dd3fc;--error:#f87171;--rec:#f87171;
   --font:'JetBrains Mono','Menlo',monospace;
 }
-html,body{height:100%;background:var(--bg);color:var(--text);
+html,body{height:100%;background:transparent;color:var(--text);
   font-family:var(--font);font-size:12.5px;line-height:1.6;
   overflow:hidden;-webkit-font-smoothing:antialiased}
-#app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+#app{background:var(--bg);border-radius:12px;display:flex;flex-direction:column;height:100vh;overflow:hidden}
 #header{display:flex;align-items:center;justify-content:space-between;
   padding:9px 14px;border-bottom:1px solid var(--border);
-  background:var(--surface);-webkit-app-region:drag;user-select:none;flex-shrink:0}
+  background:var(--surface);-webkit-app-region:drag;
+  user-select:none;-webkit-user-select:none;cursor:default;flex-shrink:0}
+#header *{user-select:none;-webkit-user-select:none}
 #dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
-  box-shadow:0 0 5px var(--accent);animation:pulse 2.5s ease-in-out infinite}
+  box-shadow:0 0 5px var(--accent);animation:pulse 2.5s ease-in-out infinite;
+  pointer-events:none}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 #header-left{display:flex;align-items:center;gap:8px}
 #backend-badge{font-size:9px;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--muted);padding:1px 5px;border:1px solid var(--border);border-radius:3px}
-#autoscroll-btn{background:none;border:1px solid var(--border);color:var(--muted);
+  color:var(--muted);padding:1px 5px;border:1px solid var(--border);border-radius:3px;
+  pointer-events:none}
+#autoscroll-btn{-webkit-appearance:none;appearance:none;background:none;
+  border:1px solid var(--border);color:var(--muted);
   font-family:var(--font);font-size:12px;padding:1px 6px;border-radius:3px;
   cursor:pointer;transition:all .15s;line-height:1.4}
 #autoscroll-btn.on{border-color:var(--accent);color:var(--accent)}
@@ -695,9 +1016,9 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 #model-btn:hover{color:var(--text)}
 #model-name{color:var(--text)}
 #model-dropdown{display:none;position:fixed;top:44px;left:14px;
-  background:#1a1a1e;border:1px solid var(--border);border-radius:6px;
+  background:var(--surface);border:1px solid var(--border);border-radius:6px;
   min-width:220px;z-index:999;overflow-y:auto;max-height:calc(100vh - 60px);
-  box-shadow:0 8px 24px rgba(0,0,0,.7)}
+  box-shadow:0 8px 24px rgba(0,0,0,.15)}
 #model-dropdown.open{display:block}
 .model-opt{padding:8px 14px;font-size:11.5px;cursor:pointer;color:var(--text);
   font-family:var(--font);transition:background .1s;white-space:nowrap}
@@ -706,7 +1027,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 #msgs{flex:1;overflow-y:auto;padding:14px;scroll-behavior:smooth}
 #msgs::-webkit-scrollbar{width:3px}
 #msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.msg{margin-bottom:16px;animation:fadein .15s ease}
+.msg{margin-bottom:16px;animation:fadein .15s ease;background:var(--surface);padding:12px;border-radius:8px;border:1px solid var(--border);transition:all 0.3s;}
+.msg.user{background:transparent;border-color:transparent;padding:4px 0px;}
 @keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 .lbl{font-size:10px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px;color:var(--muted)}
 .msg.user .lbl{color:var(--user)}
@@ -732,8 +1054,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 #mic-btn.transcribing{border-color:var(--muted);color:var(--muted);cursor:default}
 @keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.4)}50%{box-shadow:0 0 0 4px rgba(248,113,113,0)}}
 #btn.stopping{border-color:var(--error);color:var(--error)}
+#screenshot-btn{padding:5px 8px;line-height:0;font-size:13px}
+#screenshot-btn.captured{border-color:var(--accent);color:var(--accent)}
+#screenshot-indicator{display:none;font-size:10px;color:var(--accent);padding:3px 14px 0;
+  letter-spacing:.03em;cursor:pointer}
+#screenshot-indicator:hover{color:var(--error)}
 #hint{font-size:10px;color:var(--muted);padding:4px 14px 0;display:none;letter-spacing:.03em}
 #hint.visible{display:block}
+#close-btn{-webkit-appearance:none;appearance:none;background:none;border:none;
+  color:var(--muted);font-size:16px;line-height:1;
+  cursor:pointer;padding:0 4px;transition:color .15s;-webkit-app-region:no-drag}
+#close-btn:hover{color:var(--error)}
 </style>
 </head>
 <body>
@@ -750,12 +1081,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);
       </div>
       <span id="backend-badge">ollama</span>
     </div>
-    <button id="autoscroll-btn" title="Auto-scroll" style="-webkit-app-region:no-drag">↓</button>
+    <div style="display:flex;align-items:center;gap:4px;-webkit-app-region:no-drag">
+      <button id="autoscroll-btn" title="Auto-scroll">↓</button>
+      <button id="close-btn" title="Close">×</button>
+    </div>
   </div>
   <div id="msgs"></div>
   <div id="hint"></div>
+  <div id="screenshot-indicator" title="Screenshot attached — click to remove">📎 screenshot attached</div>
   <div id="bottom">
     <textarea id="inp" placeholder="Message… (Enter to send)" rows="1"></textarea>
+    <button id="screenshot-btn" class="action-btn" title="Capture screen"><svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M1 4V1h4M11 1h4v3M15 10v3h-4M5 13H1v-3"/></svg></button>
     <button id="mic-btn" class="action-btn" title="Click to record">🎙</button>
     <button id="btn" class="action-btn">↵</button>
   </div>
@@ -764,6 +1100,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 let model = '', busy = false, currentBody = null;
 let micState = 'idle', streaming = false;
 let autoScroll = true;
+let hasScreenshot = false;
 
 window.webkit.messageHandlers.loadModels.postMessage({});
 window.webkit.messageHandlers.checkWhisper.postMessage({});
@@ -776,6 +1113,10 @@ const backendBadge  = document.getElementById('backend-badge');
 
 modelBtn.addEventListener('click', e => { e.stopPropagation(); modelDropdown.classList.toggle('open'); });
 document.addEventListener('click', () => modelDropdown.classList.remove('open'));
+
+document.getElementById('close-btn').addEventListener('click', () => {
+  window.webkit.messageHandlers.closeWindow.postMessage({});
+});
 
 // ── Auto-scroll toggle ────────────────────────────────────────────────────────
 const autoscrollBtn = document.getElementById('autoscroll-btn');
@@ -910,19 +1251,68 @@ function endStream() {
   btn.textContent = '↵'; btn.classList.remove('stopping');
 }
 
+// ── Screenshot ────────────────────────────────────────────────────────────────
+const screenshotBtn = document.getElementById('screenshot-btn');
+const screenshotIndicator = document.getElementById('screenshot-indicator');
+const SCREENSHOT_ICON = screenshotBtn.innerHTML;
+
+screenshotBtn.addEventListener('click', e => {
+  e.preventDefault();
+  if (hasScreenshot) {
+    clearScreenshotUI();
+    window.webkit.messageHandlers.clearScreenshot.postMessage({});
+  } else {
+    screenshotBtn.innerHTML = '⏳';
+    screenshotBtn.disabled = true;
+    window.webkit.messageHandlers.captureScreen.postMessage({});
+  }
+});
+
+screenshotIndicator.addEventListener('click', () => {
+  clearScreenshotUI();
+  window.webkit.messageHandlers.clearScreenshot.postMessage({});
+});
+
+function clearScreenshotUI() {
+  hasScreenshot = false;
+  screenshotBtn.innerHTML = SCREENSHOT_ICON;
+  screenshotBtn.classList.remove('captured');
+  screenshotBtn.title = 'Capture screen';
+  screenshotBtn.disabled = false;
+  screenshotIndicator.style.display = 'none';
+}
+
+function onScreenshotCaptured() {
+  hasScreenshot = true;
+  screenshotBtn.innerHTML = SCREENSHOT_ICON;
+  screenshotBtn.classList.add('captured');
+  screenshotBtn.title = 'Screenshot attached — click to remove';
+  screenshotBtn.disabled = false;
+  screenshotIndicator.style.display = 'block';
+}
+
+function onScreenshotError() {
+  screenshotBtn.innerHTML = SCREENSHOT_ICON;
+  screenshotBtn.disabled = false;
+  screenshotBtn.title = 'Screen capture failed — check System Settings > Privacy > Screen Recording';
+}
+
 function sendText(text) {
   if (busy || !text) return;
   modelDropdown.classList.remove('open');
-  addMsg('user').textContent = text;
+  addMsg('user').textContent = text + (hasScreenshot ? ' 📎' : '');
   currentBody = addMsg('ai');
   currentBody.classList.add('cursor');
   busy = true; streaming = true;
   btn.textContent = '⏹'; btn.classList.add('stopping');
+  if (hasScreenshot) clearScreenshotUI();
   window.webkit.messageHandlers.sendMessage.postMessage({prompt: text, model: model});
 }
 
 function send() {
-  const inp = document.getElementById('inp'), text = inp.value.trim();
+  const inp = document.getElementById('inp');
+  let text = inp.value.trim();
+  if (!text && hasScreenshot) text = 'Look at this screenshot. Find any programming problem, error, or bug and explain how to fix it.';
   if (!text) return;
   inp.value = ''; inp.style.height = 'auto';
   sendText(text);
@@ -932,6 +1322,7 @@ document.getElementById('inp').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
   setTimeout(() => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 72) + 'px'; }, 0);
 });
+
 </script>
 </body>
 </html>

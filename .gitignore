@@ -3,3 +3,7 @@ OllamaChat.app/*
 OllamaChat.app/Contents/MacOS/OllamaChat
 Veil.app/*
 *.dmg
+Veil.icns
+Veil.iconset/
+.env
+
