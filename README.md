@@ -105,15 +105,21 @@ Screenshot data stays on your machine. Only sent to the backend you configured.
 
 ## Usage
 
-| Action          | How                              |
-|-----------------|----------------------------------|
-| Send            | Type + **Enter**                 |
-| Stop generation | **⏹**                           |
-| Switch model    | Click model name in header       |
-| Voice input     | **🎙** → speak → **🎙**         |
-| Screenshot      | **⌗** → sends with next message  |
-| Close           | **×** or **Cmd+W**               |
-| Configure       | **⬡ → Configure backend…**      |
+| Action | How |
+|--------|-----|
+| Send | Type + **Enter** |
+| Stop generation | **⏹** |
+| Switch model | Click model name in header |
+| Voice input | **🎙** → speak → **🎙** |
+| Screenshot | **⌗** → sends with next message |
+| Close | **×** or **Cmd+W** |
+| Configure | **⬡ → Configure backend…** |
+
+---
+
+## Conversation context
+
+Veil maintains the full conversation history within each session. Every message you send includes all prior exchanges so the model remembers what was discussed. Context resets when you close the window.
 
 ---
 

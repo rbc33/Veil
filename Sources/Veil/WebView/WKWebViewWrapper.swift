@@ -25,10 +25,11 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
         switch message.name {
         case "sendMessage":
-            guard let body = message.body as? [String: String],
-                  let prompt = body["prompt"], let model = body["model"] else { return }
+            guard let body = message.body as? [String: Any],
+                  let messages = body["messages"] as? [[String: Any]],
+                  let model = body["model"] as? String else { return }
             let img = pendingScreenshot; pendingScreenshot = nil
-            streamResponse(prompt: prompt, model: model, image: img)
+            streamResponse(messages: messages, model: model, image: img)
         case "captureScreen":
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 guard let self = self else { return }
@@ -148,44 +149,47 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         }.resume()
     }
 
-    func streamResponse(prompt: String, model: String, image: String? = nil) {
+    func streamResponse(messages: [[String: Any]], model: String, image: String? = nil) {
         let cfg = BackendConfig.current
         switch cfg.type {
-        case .ollama: streamOllama(prompt: prompt, model: model, cfg: cfg, image: image)
-        case .openai: streamOpenAI(prompt: prompt, model: model, cfg: cfg, image: image)
+        case .ollama: streamOllama(messages: messages, model: model, cfg: cfg, image: image)
+        case .openai: streamOpenAI(messages: messages, model: model, cfg: cfg, image: image)
         }
     }
 
-    func streamOllama(prompt: String, model: String, cfg: BackendConfig, image: String? = nil) {
-        guard let url = URL(string: "\(cfg.url)/api/generate") else { return }
-        var body: [String: Any] = ["model": model, "prompt": prompt, "stream": true]
-        if let img = image { body["images"] = [img] }
+    func streamOllama(messages: [[String: Any]], model: String, cfg: BackendConfig, image: String? = nil) {
+        guard let url = URL(string: "\(cfg.url)/api/chat") else { return }
+        var msgs = messages
+        if let img = image, !msgs.isEmpty {
+            var last = msgs[msgs.count - 1]
+            last["images"] = [img]
+            msgs[msgs.count - 1] = last
+        }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "messages": msgs, "stream": true])
         startStream(req: req, parser: OllamaStreamParser())
     }
 
-    func streamOpenAI(prompt: String, model: String, cfg: BackendConfig, image: String? = nil) {
+    func streamOpenAI(messages: [[String: Any]], model: String, cfg: BackendConfig, image: String? = nil) {
         guard let url = URL(string: "\(cfg.url)/chat/completions") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !cfg.apiKey.isEmpty { req.setValue("Bearer \(cfg.apiKey)", forHTTPHeaderField: "Authorization") }
-        let content: Any
-        if let img = image {
-            content = [
-                ["type": "text", "text": prompt],
-                ["type": "image_url", "image_url": ["url": "data:image/png;base64,\(img)"]]
-            ]
-        } else {
-            content = prompt
+        var msgs = messages
+        if let img = image, !msgs.isEmpty {
+            var last = msgs[msgs.count - 1]
+            if let text = last["content"] as? String {
+                last["content"] = [
+                    ["type": "text", "text": text],
+                    ["type": "image_url", "image_url": ["url": "data:image/png;base64,\(img)"]]
+                ]
+                msgs[msgs.count - 1] = last
+            }
         }
-        req.httpBody = try? JSONSerialization.data(withJSONObject: [
-            "model": model, "stream": true,
-            "messages": [["role": "user", "content": content]]
-        ])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "stream": true, "messages": msgs])
         startStream(req: req, parser: OpenAIStreamParser())
     }
 

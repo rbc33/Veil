@@ -9,6 +9,9 @@ struct OllamaStreamParser: StreamParser {
         guard let d = line.data(using: .utf8),
               let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any]
         else { return nil }
+        // /api/chat format
+        if let msg = j["message"] as? [String: Any] { return msg["content"] as? String }
+        // /api/generate fallback
         return j["response"] as? String
     }
 }

@@ -134,6 +134,8 @@ let model = '', busy = false, currentBody = null;
 let micState = 'idle', streaming = false;
 let autoScroll = true;
 let hasScreenshot = false;
+let messages = [];
+const CTX_WINDOW = 20; // max messages sent to API (keeps last N)
 
 function setSavedModel(m) { window.savedModel = m; }
 
@@ -236,7 +238,10 @@ btn.addEventListener('click', e => {
   if (streaming) {
     window.webkit.messageHandlers.stopStream.postMessage({});
     streaming = false; busy = false;
-    if (currentBody) currentBody.classList.remove('cursor');
+    if (currentBody) {
+      if (!currentBody.textContent) messages.pop(); // remove user msg if no response yet
+      currentBody.classList.remove('cursor');
+    }
     currentBody = null;
     btn.textContent = '↵'; btn.classList.remove('stopping');
     return;
@@ -287,7 +292,10 @@ function appendToken(t) {
 }
 
 function endStream() {
-  if (currentBody) currentBody.classList.remove('cursor');
+  if (currentBody) {
+    messages.push({role: 'assistant', content: currentBody.textContent});
+    currentBody.classList.remove('cursor');
+  }
   currentBody = null; busy = false; streaming = false;
   btn.textContent = '↵'; btn.classList.remove('stopping');
 }
@@ -346,8 +354,10 @@ function sendText(text) {
   currentBody.classList.add('cursor');
   busy = true; streaming = true;
   btn.textContent = '⏹'; btn.classList.add('stopping');
+  messages.push({role: 'user', content: text});
   if (hasScreenshot) clearScreenshotUI();
-  window.webkit.messageHandlers.sendMessage.postMessage({prompt: text, model: model});
+  const ctx = messages.length > CTX_WINDOW ? messages.slice(-CTX_WINDOW) : messages;
+  window.webkit.messageHandlers.sendMessage.postMessage({messages: ctx, model: model});
 }
 
 function send() {
