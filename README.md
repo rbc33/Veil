@@ -40,7 +40,7 @@ Requirements: macOS 13+, Xcode Command Line Tools (`xcode-select --install`).
 
 ## Backends
 
-Open via **⬡ → Configure backend…**
+Open via **⬡ → Settings…**
 
 | Backend          | URL                                       |
 |------------------|-------------------------------------------|
@@ -50,7 +50,7 @@ Open via **⬡ → Configure backend…**
 | NVIDIA NIM       | `https://integrate.api.nvidia.com/v1`     |
 | OpenAI           | `https://api.openai.com/v1`               |
 
-Config panel fetches available models automatically. Use **Test** to verify connectivity before saving.
+Settings fetches available models automatically. Use **Test** to verify connectivity before saving.
 
 ### NVIDIA NIM API key
 
@@ -76,7 +76,9 @@ curl -L -o /opt/homebrew/share/whisper-cpp/ggml-base.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 ```
 
-Press **🎙** → speak → press **🎙** again → transcribes and sends. All on-device.
+Press **🎙** or use the keyboard shortcut → speak → press again → transcribes and sends. All on-device.
+
+Default shortcut: **⌘⌥** (customizable in Settings).
 
 | Model    | Size   | Notes                |
 |----------|--------|----------------------|
@@ -95,11 +97,15 @@ tccutil reset Microphone com.local.veil
 
 ## Screenshot analysis
 
-Press the **⌗** button to capture your screen. Veil attaches the screenshot to your next message. Ask anything — the model sees your screen.
+Press **⌗** to capture your screen. Veil attaches it to your next message — the model sees your screen.
 
-Works with any vision-capable model (e.g. `llava`, `gpt-4o`, `gemma3`).
+Works with any vision-capable model (e.g. `llava`, `gpt-4o`, `gemma3`). Screenshot data is sent only to the backend you configured.
 
-Screenshot data stays on your machine. Only sent to the backend you configured.
+---
+
+## Conversation context
+
+Full history is maintained within each session. Every message includes all prior exchanges so the model remembers context. Resets when you close the window.
 
 ---
 
@@ -110,19 +116,13 @@ Screenshot data stays on your machine. Only sent to the backend you configured.
 | Send | Type + **Enter** |
 | Stop generation | **⏹** |
 | Switch model | Click model name in header |
-| Voice input | **🎙** → speak → **🎙** |
+| Voice input | **🎙** or **⌘⌥** (default) |
 | Screenshot | **⌗** → sends with next message |
 | Close | **×** or **Cmd+W** |
-| Configure | **⬡ → Configure backend…** |
-
----
-
-## Conversation context
-
-Veil maintains the full conversation history within each session. Every message you send includes all prior exchanges so the model remembers what was discussed. Context resets when you close the window.
+| Settings | **⬡ → Settings…** |
 
 ---
 
 ## Privacy
 
-No telemetry. No analytics. No cloud. Network calls go only to the backend you set — Ollama runs fully local, nothing leaves your machine. Audio transcription runs on-device via Whisper. Screenshot data is sent only to your configured backend.
+No telemetry. No analytics. No cloud. Network calls go only to the backend you configure — Ollama runs fully local, nothing leaves your machine. Audio transcription runs on-device via Whisper. Screenshot data is sent only to your configured backend.

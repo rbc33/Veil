@@ -42,7 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Open chat", action: #selector(toggleChat), keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Configure backend…", action: #selector(configureBackend), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(configureBackend), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
         statusItem?.menu = menu
@@ -57,11 +57,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func configureBackend() {
         let cfg = BackendConfig.current
         let alert = NSAlert()
-        alert.messageText = "Configure backend"
+        alert.messageText = "Settings"
         alert.addButton(withTitle: "Save")
         alert.addButton(withTitle: "Cancel")
 
-        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 260))
+        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 290))
         stack.orientation = .vertical
         stack.alignment   = .left
         stack.spacing     = 10
@@ -286,12 +286,28 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             hint.stringValue = self.backenHint(seg.selectedSegment)
         }
 
+        let shortcutRow = NSStackView()
+        shortcutRow.orientation = .horizontal
+        shortcutRow.spacing = 8
+        let shortcutLabel = NSTextField(labelWithString: "Shortcut:")
+        shortcutLabel.frame.size.width = 70
+        let recorder = ShortcutRecorder()
+        recorder.onChange = { [weak self] _ in self?.chatWindow?.webView.sendShortcut() }
+        let shortcutHint = NSTextField(labelWithString: "click to record  ·  ↩ = modifier-only  ·  Esc = cancel")
+        shortcutHint.font = NSFont.systemFont(ofSize: 10)
+        shortcutHint.textColor = .secondaryLabelColor
+        shortcutRow.addArrangedSubview(shortcutLabel)
+        shortcutRow.addArrangedSubview(recorder.field)
+        shortcutRow.addArrangedSubview(shortcutHint)
+        objc_setAssociatedObject(stack, "recorder", recorder, .OBJC_ASSOCIATION_RETAIN)
+
         stack.addArrangedSubview(typeRow)
         stack.addArrangedSubview(nimRow)
         stack.addArrangedSubview(urlRow)
         stack.addArrangedSubview(keyRow)
         stack.addArrangedSubview(testRow)
         stack.addArrangedSubview(modelsRow)
+        stack.addArrangedSubview(shortcutRow)
         stack.addArrangedSubview(hint)
         alert.accessoryView = stack
         alert.window.initialFirstResponder = urlField

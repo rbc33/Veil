@@ -58,6 +58,10 @@ codesign --force --deep --sign - \
   --entitlements /tmp/entitlements.plist \
   "$APP"
 
+echo "→ Resetting TCC permissions (signature changed)..."
+tccutil reset ScreenCapture com.local.veil 2>/dev/null || true
+tccutil reset Microphone    com.local.veil 2>/dev/null || true
+
 echo "→ Creating DMG..."
 STAGING="$(mktemp -d)/Veil"
 mkdir -p "$STAGING"

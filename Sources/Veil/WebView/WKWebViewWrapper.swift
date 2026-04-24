@@ -44,6 +44,7 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
             pendingScreenshot = nil
         case "initModel":
             sendSavedModel()
+            sendShortcut()
         case "loadModels":   fetchModels()
         case "checkWhisper": checkWhisperInstall()
         case "startRecording":
@@ -111,6 +112,10 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         if let saved = UserDefaults.standard.string(forKey: "selectedModel") {
             view.evaluateJavaScript("setSavedModel('\(saved)')", completionHandler: nil)
         }
+    }
+
+    func sendShortcut() {
+        view.evaluateJavaScript("setShortcut(\(RecordingShortcut.current.jsJSON))", completionHandler: nil)
     }
 
     func fetchModels() {

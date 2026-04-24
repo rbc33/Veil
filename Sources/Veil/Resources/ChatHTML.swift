@@ -125,7 +125,7 @@ html,body{height:100%;background:transparent;color:var(--text);
   <div id="bottom">
     <textarea id="inp" placeholder="Message… (Enter to send)" rows="1"></textarea>
     <button id="screenshot-btn" class="action-btn" title="Capture screen"><svg width="16" height="14" viewBox="0 0 16 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"><path d="M1 4V1h4M11 1h4v3M15 10v3h-4M5 13H1v-3"/></svg></button>
-    <button id="mic-btn" class="action-btn" title="Click to record">🎙</button>
+    <button id="mic-btn" class="action-btn" title="Record">🎙</button>
     <button id="btn" class="action-btn">↵</button>
   </div>
 </div>
@@ -219,18 +219,54 @@ function onWhisperStatus(hasBin, hasModel) {
 const micBtn = document.getElementById('mic-btn');
 const btn    = document.getElementById('btn');
 
-micBtn.addEventListener('click', e => {
-  e.preventDefault();
+function shortcutLabel() {
+  let s = '';
+  if (shortcut.ctrl)  s += '⌃';
+  if (shortcut.opt)   s += '⌥';
+  if (shortcut.shift) s += '⇧';
+  if (shortcut.cmd)   s += '⌘';
+  s += shortcut.key.toUpperCase();
+  return s || '—';
+}
+
+function toggleMic() {
   if (micState === 'idle') {
     micState = 'recording';
     micBtn.classList.add('recording');
-    micBtn.title = 'Click to stop';
+    micBtn.title = 'Stop (' + shortcutLabel() + ')';
     window.webkit.messageHandlers.startRecording.postMessage({});
   } else if (micState === 'recording') {
     micBtn.classList.remove('recording');
-    micBtn.title = 'Click to record';
+    micBtn.title = 'Record (' + shortcutLabel() + ')';
     window.webkit.messageHandlers.stopRecording.postMessage({});
   }
+}
+
+micBtn.addEventListener('click', e => { e.preventDefault(); toggleMic(); });
+
+let shortcut = {cmd:true, opt:true, ctrl:false, shift:false, key:''};
+function setShortcut(s) { shortcut = s; }
+
+const MOD_KEYS = new Set(['Meta','Alt','Control','Shift']);
+let _scArmed = false;
+
+document.addEventListener('keydown', e => {
+  if (shortcut.key) {
+    if (e.metaKey===shortcut.cmd && e.altKey===shortcut.opt &&
+        e.ctrlKey===shortcut.ctrl && e.shiftKey===shortcut.shift &&
+        e.key.toLowerCase()===shortcut.key) {
+      e.preventDefault(); toggleMic();
+    }
+    return;
+  }
+  const modsMatch = e.metaKey===shortcut.cmd && e.altKey===shortcut.opt &&
+                    e.ctrlKey===shortcut.ctrl && e.shiftKey===shortcut.shift;
+  if (modsMatch && MOD_KEYS.has(e.key)) { _scArmed = true; }
+  else { _scArmed = false; }
+});
+
+document.addEventListener('keyup', e => {
+  if (_scArmed && MOD_KEYS.has(e.key)) { _scArmed = false; toggleMic(); }
 });
 
 btn.addEventListener('click', e => {
@@ -262,6 +298,7 @@ function onTranscription(text) {
   micState = 'idle';
   micBtn.classList.remove('recording','transcribing');
   micBtn.textContent = '🎙';
+  micBtn.title = 'Record (' + shortcutLabel() + ')';
   if (text && text.trim()) sendText(text.trim());
 }
 
@@ -269,6 +306,7 @@ function onMicError(msg) {
   micState = 'idle';
   micBtn.classList.remove('recording','transcribing');
   micBtn.textContent = '🎙';
+  micBtn.title = 'Record (' + shortcutLabel() + ')';
   addMsg('err').textContent = msg;
 }
 
