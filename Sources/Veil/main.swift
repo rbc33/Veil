@@ -680,12 +680,9 @@ func transcribe(audioURL: URL, completion: @escaping (String?) -> Void) {
 // ── Screen capture ────────────────────────────────────────────────────────────
 
 func captureScreenBase64(maxWidth: Int = 1440) -> String? {
-    // Try capturing directly first — CGPreflightScreenCaptureAccess() gives false
-    // negatives after ad-hoc re-signing (each build changes the binary hash).
     let cg = CGWindowListCreateImage(.infinite, .optionOnScreenOnly, kCGNullWindowID, .bestResolution)
     if cg == nil {
-        // Capture failed: request permission and let the user retry.
-        if !CGPreflightScreenCaptureAccess() { CGRequestScreenCaptureAccess() }
+        CGRequestScreenCaptureAccess()
         return nil
     }
     guard let cg = cg else { return nil }
@@ -717,10 +714,11 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         view = WKWebView(frame: frame, configuration: config)
         view.setValue(false, forKey: "drawsBackground")
         super.init()
-        for name in ["sendMessage","loadModels","startRecording","stopRecording","stopStream","checkWhisper","closeWindow","captureScreen","clearScreenshot"] {
+        for name in ["sendMessage","loadModels","startRecording","stopRecording","stopStream","checkWhisper","closeWindow","captureScreen","clearScreenshot","initModel"] {
             cc.add(self, name: name)
         }
         loadHTML()
+        sendSavedModel()
     }
 
     func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -742,6 +740,8 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
             }
         case "clearScreenshot":
             pendingScreenshot = nil
+        case "initModel":
+            sendSavedModel()
         case "loadModels":   fetchModels()
         case "checkWhisper": checkWhisperInstall()
         case "startRecording":
@@ -806,6 +806,12 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     }
 
     // ── Fetch models ──────────────────────────────────────────────────────────
+
+    func sendSavedModel() {
+        if let saved = UserDefaults.standard.string(forKey: "selectedModel") {
+            view.evaluateJavaScript("setSavedModel('\(saved)')", completionHandler: nil)
+        }
+    }
 
     func fetchModels() {
         let cfg = BackendConfig.current
@@ -1102,8 +1108,11 @@ let micState = 'idle', streaming = false;
 let autoScroll = true;
 let hasScreenshot = false;
 
+function setSavedModel(m) { window.savedModel = m; }
+
 window.webkit.messageHandlers.loadModels.postMessage({});
 window.webkit.messageHandlers.checkWhisper.postMessage({});
+window.webkit.messageHandlers.initModel.postMessage({});
 
 // ── Model dropdown ────────────────────────────────────────────────────────────
 const modelBtn      = document.getElementById('model-btn');
@@ -1146,6 +1155,11 @@ document.getElementById('msgs').addEventListener('scroll', () => {
 function receiveModels(models, backend) {
   backendBadge.textContent = backend;
   if (!models.length) { modelName.textContent = 'no models'; return; }
+  const saved = window.savedModel; window.savedModel = null;
+  if (saved) {
+    const match = models.find(m => m === saved || m.startsWith(saved.split(':')[0]));
+    if (match) model = match;
+  }
   if (!model) model = models[0];
   const match = models.find(m => m === model || m.startsWith(model.split(':')[0]));
   model = match || models[0];
