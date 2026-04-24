@@ -52,9 +52,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             button.target = self
         }
         buildMenu()
+        addEditMenu()
         try? FileManager.default.createDirectory(
             atPath: NSHomeDirectory() + "/.ollama-chat",
             withIntermediateDirectories: true)
+    }
+
+    func addEditMenu() {
+        // Required for Cmd+C/V/X/A to work in NSTextField panels
+        let mainMenu = NSMenu()
+        let appMenuItem = NSMenuItem()
+        mainMenu.addItem(appMenuItem)
+        let appMenu = NSMenu()
+        appMenu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
+        appMenuItem.submenu = appMenu
+
+        let editMenuItem = NSMenuItem()
+        mainMenu.addItem(editMenuItem)
+        let editMenu = NSMenu(title: "Edit")
+        editMenu.addItem(NSMenuItem(title: "Cut",        action: #selector(NSText.cut(_:)),        keyEquivalent: "x"))
+        editMenu.addItem(NSMenuItem(title: "Copy",       action: #selector(NSText.copy(_:)),       keyEquivalent: "c"))
+        editMenu.addItem(NSMenuItem(title: "Paste",      action: #selector(NSText.paste(_:)),      keyEquivalent: "v"))
+        editMenu.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)),  keyEquivalent: "a"))
+        editMenuItem.submenu = editMenu
+        NSApp.mainMenu = mainMenu
     }
 
     func buildMenu() {
@@ -81,7 +102,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         alert.addButton(withTitle: "Cancel")
 
         // Stack view
-        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 140))
+        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 170))
         stack.orientation = .vertical
         stack.alignment   = .left
         stack.spacing     = 10
@@ -99,6 +120,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         typeRow.addArrangedSubview(typeLabel)
         typeRow.addArrangedSubview(typeSel)
 
+        // NIM checkbox
+        let nimRow = NSStackView()
+        nimRow.orientation = .horizontal
+        nimRow.spacing = 8
+        let nimCheck = NSButton(checkboxWithTitle: "Use NVIDIA NIM (integrate.api.nvidia.com)", target: nil, action: nil)
+        nimCheck.state = (cfg.url.contains("integrate.api.nvidia.com")) ? .on : .off
+        nimRow.addArrangedSubview(nimCheck)
+
         // URL field
         let urlRow = NSStackView()
         urlRow.orientation = .horizontal
@@ -111,6 +140,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         urlField.placeholderString = "http://localhost:11434"
         urlRow.addArrangedSubview(urlLabel)
         urlRow.addArrangedSubview(urlField)
+
+        // When NIM checkbox toggled, update URL and type fields
+        class NimHandler: NSObject {
+            weak var urlField: NSTextField?
+            weak var typeSel: NSPopUpButton?
+            weak var check: NSButton?
+            @objc func handle() {
+                guard let check = check else { return }
+                if check.state == .on {
+                    urlField?.stringValue = "https://integrate.api.nvidia.com/v1"
+                    typeSel?.selectItem(at: 1)
+                } else if urlField?.stringValue == "https://integrate.api.nvidia.com/v1" {
+                    urlField?.stringValue = ""
+                }
+            }
+        }
+        let nimHandler = NimHandler()
+        nimHandler.urlField = urlField
+        nimHandler.typeSel  = typeSel
+        nimHandler.check    = nimCheck
+        objc_setAssociatedObject(nimCheck, "nimHandler", nimHandler, .OBJC_ASSOCIATION_RETAIN)
+        nimCheck.target = nimHandler
+        nimCheck.action = #selector(NimHandler.handle)
 
         // API key field
         let keyRow = NSStackView()
@@ -141,6 +193,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         stack.addArrangedSubview(typeRow)
+        stack.addArrangedSubview(nimRow)
         stack.addArrangedSubview(urlRow)
         stack.addArrangedSubview(keyRow)
         stack.addArrangedSubview(hint)
@@ -592,6 +645,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 #header-left{display:flex;align-items:center;gap:8px}
 #backend-badge{font-size:9px;letter-spacing:.06em;text-transform:uppercase;
   color:var(--muted);padding:1px 5px;border:1px solid var(--border);border-radius:3px}
+#autoscroll-btn{background:none;border:1px solid var(--border);color:var(--muted);
+  font-family:var(--font);font-size:12px;padding:1px 6px;border-radius:3px;
+  cursor:pointer;transition:all .15s;line-height:1.4}
+#autoscroll-btn.on{border-color:var(--accent);color:var(--accent)}
+#autoscroll-btn:hover{border-color:var(--text);color:var(--text)}
 #model-wrap{position:relative;display:flex;align-items:center;gap:6px}
 #model-btn{background:transparent;border:none;color:var(--muted);
   font-family:var(--font);font-size:11.5px;cursor:pointer;outline:none;
@@ -655,6 +713,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);
       </div>
       <span id="backend-badge">ollama</span>
     </div>
+    <button id="autoscroll-btn" title="Auto-scroll" style="-webkit-app-region:no-drag">↓</button>
   </div>
   <div id="msgs"></div>
   <div id="hint"></div>
@@ -667,6 +726,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 <script>
 let model = '', busy = false, currentBody = null;
 let micState = 'idle', streaming = false;
+let autoScroll = true;
 
 window.webkit.messageHandlers.loadModels.postMessage({});
 window.webkit.messageHandlers.checkWhisper.postMessage({});
@@ -679,6 +739,31 @@ const backendBadge  = document.getElementById('backend-badge');
 
 modelBtn.addEventListener('click', e => { e.stopPropagation(); modelDropdown.classList.toggle('open'); });
 document.addEventListener('click', () => modelDropdown.classList.remove('open'));
+
+// ── Auto-scroll toggle ────────────────────────────────────────────────────────
+const autoscrollBtn = document.getElementById('autoscroll-btn');
+autoscrollBtn.classList.toggle('on', autoScroll);
+
+autoscrollBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  autoScroll = !autoScroll;
+  autoscrollBtn.classList.toggle('on', autoScroll);
+  autoscrollBtn.title = autoScroll ? 'Auto-scroll: on' : 'Auto-scroll: off';
+  if (autoScroll) {
+    const msgs = document.getElementById('msgs');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+});
+
+// Pause auto-scroll if user scrolls up manually
+document.getElementById('msgs').addEventListener('scroll', () => {
+  const msgs = document.getElementById('msgs');
+  const atBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 40;
+  if (!atBottom && streaming) {
+    autoScroll = false;
+    autoscrollBtn.classList.remove('on');
+  }
+});
 
 function receiveModels(models, backend) {
   backendBadge.textContent = backend;
@@ -774,7 +859,12 @@ function addMsg(role) {
 }
 
 function appendToken(t) {
-  if (currentBody) { currentBody.textContent += t; document.getElementById('msgs').scrollTop = 999999; }
+  if (!currentBody) return;
+  currentBody.textContent += t;
+  if (autoScroll) {
+    const msgs = document.getElementById('msgs');
+    msgs.scrollTop = msgs.scrollHeight;
+  }
 }
 
 function endStream() {
