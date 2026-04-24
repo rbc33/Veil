@@ -1,17 +1,41 @@
 import AppKit
 import Foundation
 import AVFoundation
+import WebKit
 
-// ── Constantes ────────────────────────────────────────────────────────────────
+// ── Backend config ────────────────────────────────────────────────────────────
 
-let WHISPER_BIN   = "/usr/local/bin/whisper-cli"   // brew install whisper-cpp
-let WHISPER_MODEL = NSHomeDirectory() + "/.ollama-chat/ggml-base.bin"
-
-// URL de Ollama — se guarda en UserDefaults para persistir entre sesiones
-var OLLAMA_BASE: String {
-    get { UserDefaults.standard.string(forKey: "ollamaURL") ?? "http://localhost:11434" }
-    set { UserDefaults.standard.set(newValue, forKey: "ollamaURL") }
+enum BackendType: String {
+    case ollama   = "ollama"
+    case openai   = "openai"   // NIM, llama.cpp, cualquier OpenAI-compatible
 }
+
+struct BackendConfig {
+    var type:   BackendType
+    var url:    String
+    var apiKey: String
+
+    static var current: BackendConfig {
+        get {
+            let d = UserDefaults.standard
+            return BackendConfig(
+                type:   BackendType(rawValue: d.string(forKey: "backendType") ?? "") ?? .ollama,
+                url:    d.string(forKey: "backendURL")    ?? "http://localhost:11434",
+                apiKey: d.string(forKey: "backendAPIKey") ?? ""
+            )
+        }
+        set {
+            let d = UserDefaults.standard
+            d.set(newValue.type.rawValue, forKey: "backendType")
+            d.set(newValue.url,           forKey: "backendURL")
+            d.set(newValue.apiKey,        forKey: "backendAPIKey")
+        }
+    }
+}
+
+// ── Whisper ───────────────────────────────────────────────────────────────────
+
+let WHISPER_BIN = "/usr/local/bin/whisper-cli"
 
 // ── AppDelegate ───────────────────────────────────────────────────────────────
 
@@ -24,57 +48,127 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
             button.title = "⬡"
-            button.action = #selector(toggleChat)
+            button.action = #selector(openMenu)
             button.target = self
         }
-        let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Abrir chat", action: #selector(toggleChat), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Cambiar URL de Ollama…", action: #selector(changeURL), keyEquivalent: ""))
-        menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Salir", action: #selector(quit), keyEquivalent: "q"))
-        statusItem?.menu = menu
-
-        // Crear carpeta de datos y descargar modelo whisper si hace falta
-        setupWhisper()
+        buildMenu()
+        try? FileManager.default.createDirectory(
+            atPath: NSHomeDirectory() + "/.ollama-chat",
+            withIntermediateDirectories: true)
     }
 
+    func buildMenu() {
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Open chat", action: #selector(toggleChat), keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Configure backend…", action: #selector(configureBackend), keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
+        statusItem?.menu = menu
+    }
+
+    @objc func openMenu() {}
     @objc func toggleChat() {
         if chatWindow == nil { chatWindow = ChatWindow() }
         chatWindow?.showAndFocus()
     }
 
-    @objc func changeURL() {
+    @objc func configureBackend() {
+        let cfg = BackendConfig.current
         let alert = NSAlert()
-        alert.messageText = "URL de Ollama"
-        alert.informativeText = "Introduce la URL del servidor Ollama:"
-        alert.addButton(withTitle: "Guardar")
-        alert.addButton(withTitle: "Cancelar")
+        alert.messageText = "Configure backend"
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
 
-        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        input.stringValue = OLLAMA_BASE
-        input.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        alert.accessoryView = input
+        // Stack view
+        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 140))
+        stack.orientation = .vertical
+        stack.alignment   = .left
+        stack.spacing     = 10
 
-        alert.window.initialFirstResponder = input
+        // Backend type selector
+        let typeRow = NSStackView()
+        typeRow.orientation = .horizontal
+        typeRow.spacing = 8
+        let typeLabel = NSTextField(labelWithString: "Backend:")
+        typeLabel.frame.size.width = 70
+        let typeSel = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 270, height: 24))
+        typeSel.addItem(withTitle: "Ollama")
+        typeSel.addItem(withTitle: "OpenAI-compatible (NIM, llama.cpp, LM Studio…)")
+        typeSel.selectItem(at: cfg.type == .ollama ? 0 : 1)
+        typeRow.addArrangedSubview(typeLabel)
+        typeRow.addArrangedSubview(typeSel)
+
+        // URL field
+        let urlRow = NSStackView()
+        urlRow.orientation = .horizontal
+        urlRow.spacing = 8
+        let urlLabel = NSTextField(labelWithString: "URL:")
+        urlLabel.frame.size.width = 70
+        let urlField = NSTextField(frame: NSRect(x: 0, y: 0, width: 270, height: 24))
+        urlField.stringValue = cfg.url
+        urlField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        urlField.placeholderString = "http://localhost:11434"
+        urlRow.addArrangedSubview(urlLabel)
+        urlRow.addArrangedSubview(urlField)
+
+        // API key field
+        let keyRow = NSStackView()
+        keyRow.orientation = .horizontal
+        keyRow.spacing = 8
+        let keyLabel = NSTextField(labelWithString: "API key:")
+        keyLabel.frame.size.width = 70
+        let keyField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 270, height: 24))
+        keyField.stringValue = cfg.apiKey
+        keyField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        keyField.placeholderString = "Optional (required for NIM)"
+        keyRow.addArrangedSubview(keyLabel)
+        keyRow.addArrangedSubview(keyField)
+
+        // Hint
+        let hint = NSTextField(labelWithString: "")
+        hint.textColor = .secondaryLabelColor
+        hint.font = NSFont.systemFont(ofSize: 10)
+        hint.stringValue = backenHint(typeSel.indexOfSelectedItem)
+        hint.maximumNumberOfLines = 2
+        hint.lineBreakMode = .byWordWrapping
+        hint.frame.size.width = 360
+
+        typeSel.target = hint
+        // Update hint on change
+        let obs = typeSel.observe(\.indexOfSelectedItem) { sel, _ in
+            hint.stringValue = self.backenHint(sel.indexOfSelectedItem)
+        }
+
+        stack.addArrangedSubview(typeRow)
+        stack.addArrangedSubview(urlRow)
+        stack.addArrangedSubview(keyRow)
+        stack.addArrangedSubview(hint)
+        alert.accessoryView = stack
+        alert.window.initialFirstResponder = urlField
 
         if alert.runModal() == .alertFirstButtonReturn {
-            let url = input.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !url.isEmpty {
-                OLLAMA_BASE = url
-                // Recargar modelos en la ventana abierta
-                chatWindow?.webView.fetchModels()
+            var newCfg = BackendConfig(
+                type:   typeSel.indexOfSelectedItem == 0 ? .ollama : .openai,
+                url:    urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
+                apiKey: keyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+            if newCfg.url.isEmpty {
+                newCfg.url = newCfg.type == .ollama ? "http://localhost:11434" : "http://localhost:8080"
             }
+            BackendConfig.current = newCfg
+            chatWindow?.webView.fetchModels()
         }
+        _ = obs
+    }
+
+    func backenHint(_ idx: Int) -> String {
+        idx == 0
+            ? "Default: http://localhost:11434"
+            : "NIM: https://integrate.api.nvidia.com/v1\nllama.cpp: http://localhost:8080/v1\nLM Studio: http://localhost:1234/v1"
     }
 
     @objc func quit() { NSApp.terminate(nil) }
-
-    func setupWhisper() {
-        let dir = NSHomeDirectory() + "/.ollama-chat"
-        try? FileManager.default.createDirectory(atPath: dir,
-            withIntermediateDirectories: true)
-        // El modelo se descarga la primera vez que se usa el micrófono
-    }
 }
 
 // ── ChatWindow ────────────────────────────────────────────────────────────────
@@ -96,10 +190,8 @@ class ChatWindow: NSObject, NSWindowDelegate {
         window.center()
         window.isReleasedWhenClosed = false
         window.sharingType = .none
-
         webView = WKWebViewWrapper(frame: frame)
         window.contentView = webView.view
-
         super.init()
         window.delegate = self
     }
@@ -115,11 +207,10 @@ class ChatWindow: NSObject, NSWindowDelegate {
 
 // ── Audio Recorder ────────────────────────────────────────────────────────────
 
-class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
-    private var session: AVCaptureSession?
-    private var audioFile: AVAudioFile?
+class AudioRecorder: NSObject {
     private var audioEngine: AVAudioEngine?
     private var inputNode: AVAudioInputNode?
+    private var audioFile: AVAudioFile?
     var outputURL: URL?
     var onDone: ((URL?) -> Void)?
 
@@ -127,16 +218,11 @@ class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
         let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("ollama_audio_\(Int(Date().timeIntervalSince1970)).wav")
         outputURL = tmpURL
-
         audioEngine = AVAudioEngine()
         guard let engine = audioEngine else { return }
-
         inputNode = engine.inputNode
         guard let input = inputNode else { return }
-
         let fmt = input.outputFormat(forBus: 0)
-
-        // Archivo WAV 16kHz mono (lo que espera whisper)
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM,
             AVSampleRateKey: 16000.0,
@@ -145,160 +231,97 @@ class AudioRecorder: NSObject, AVCaptureAudioDataOutputSampleBufferDelegate {
             AVLinearPCMIsFloatKey: false,
             AVLinearPCMIsBigEndianKey: false
         ]
-
-        do {
-            audioFile = try AVAudioFile(forWriting: tmpURL, settings: settings)
-        } catch {
-            print("[audio] error creando archivo: \(error)")
-            return
-        }
-
+        do { audioFile = try AVAudioFile(forWriting: tmpURL, settings: settings) }
+        catch { print("[audio] \(error)"); return }
         input.installTap(onBus: 0, bufferSize: 4096, format: fmt) { [weak self] buffer, _ in
             guard let self = self, let file = self.audioFile else { return }
-            // Convertir a 16kHz mono si hace falta
-            if let converted = self.convert(buffer: buffer, to: file.processingFormat) {
-                try? file.write(from: converted)
-            } else {
-                try? file.write(from: buffer)
-            }
+            if let c = self.convert(buffer: buffer, to: file.processingFormat) { try? file.write(from: c) }
+            else { try? file.write(from: buffer) }
         }
-
-        do {
-            try engine.start()
-        } catch {
-            print("[audio] engine start error: \(error)")
-        }
+        do { try engine.start() } catch { print("[audio] engine: \(error)") }
     }
 
     func stop() {
         inputNode?.removeTap(onBus: 0)
         audioEngine?.stop()
-        audioEngine = nil
-        audioFile = nil  // flush
+        audioEngine = nil; audioFile = nil
         onDone?(outputURL)
     }
 
     private func convert(buffer: AVAudioPCMBuffer, to format: AVAudioFormat) -> AVAudioPCMBuffer? {
         guard buffer.format != format,
-              let converter = AVAudioConverter(from: buffer.format, to: format) else {
-            return nil
-        }
-        let ratio = format.sampleRate / buffer.format.sampleRate
+              let converter = AVAudioConverter(from: buffer.format, to: format) else { return nil }
+        let ratio    = format.sampleRate / buffer.format.sampleRate
         let capacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio)
         guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
-        var error: NSError?
-        var inputDone = false
+        var error: NSError?; var done = false
         converter.convert(to: out, error: &error) { _, status in
-            if inputDone {
-                status.pointee = .noDataNow
-                return nil
-            }
-            status.pointee = .haveData
-            inputDone = true
-            return buffer
+            if done { status.pointee = .noDataNow; return nil }
+            status.pointee = .haveData; done = true; return buffer
         }
         return error == nil ? out : nil
     }
 }
 
-// ── Whisper transcription ─────────────────────────────────────────────────────
+// ── Whisper ───────────────────────────────────────────────────────────────────
 
-func transcribe(audioURL: URL, completion: @escaping (String?) -> Void) {
-    // Verificar que whisper-cli existe
-    guard FileManager.default.fileExists(atPath: WHISPER_BIN) else {
-        // Intentar ruta alternativa de Homebrew arm64
-        let altBin = "/opt/homebrew/bin/whisper-cli"
-        if FileManager.default.fileExists(atPath: altBin) {
-            transcribeWith(bin: altBin, audioURL: audioURL, completion: completion)
-            return
-        }
-        completion(nil)
-        return
-    }
-    transcribeWith(bin: WHISPER_BIN, audioURL: audioURL, completion: completion)
+func findWhisperBin() -> String? {
+    [WHISPER_BIN, "/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli"]
+        .first { FileManager.default.fileExists(atPath: $0) }
 }
 
 func findWhisperModel() -> String? {
-    // Buscar en las ubicaciones estándar de whisper-cpp (Homebrew)
-    let candidates = [
+    let dirs = [
         "/opt/homebrew/share/whisper-cpp",
         "/opt/homebrew/share/whisper-cpp/models",
         "/usr/local/share/whisper-cpp",
-        "/usr/local/share/whisper-cpp/models",
         NSHomeDirectory() + "/.cache/whisper",
         NSHomeDirectory() + "/.ollama-chat",
     ]
-    let preferred = ["ggml-base.en.bin", "ggml-base.bin", "ggml-small.bin",
-                     "ggml-tiny.bin", "ggml-medium.bin", "ggml-large.bin"]
-    for dir in candidates {
-        // Primero buscar modelos en orden de preferencia
+    let preferred = ["ggml-base.en.bin","ggml-base.bin","ggml-small.bin","ggml-tiny.bin","ggml-medium.bin"]
+    for dir in dirs {
         for name in preferred {
-            let path = dir + "/" + name
-            if FileManager.default.fileExists(atPath: path) { return path }
+            let p = dir + "/" + name
+            if FileManager.default.fileExists(atPath: p) { return p }
         }
-        // Luego cualquier ggml
-        if let files = try? FileManager.default.contentsOfDirectory(atPath: dir) {
-            if let m = files.first(where: { $0.hasSuffix(".bin") && $0.contains("ggml") }) {
-                return dir + "/" + m
-            }
+        if let files = try? FileManager.default.contentsOfDirectory(atPath: dir),
+           let m = files.first(where: { $0.hasSuffix(".bin") && $0.contains("ggml") }) {
+            return dir + "/" + m
         }
     }
     return nil
 }
 
-func transcribeWith(bin: String, audioURL: URL, completion: @escaping (String?) -> Void) {
-    guard let modelPath = findWhisperModel() else {
-        print("[whisper] no model found")
-        completion(nil)
-        return
-    }
-    print("[whisper] using model: \(modelPath)")
-
+func transcribe(audioURL: URL, completion: @escaping (String?) -> Void) {
+    guard let bin   = findWhisperBin(),
+          let model = findWhisperModel() else { completion(nil); return }
+    print("[whisper] \(bin) model=\(model)")
     let task = Process()
     task.executableURL = URL(fileURLWithPath: bin)
-    task.arguments = [
-        "--model", modelPath,
-        "--language", "auto",
-        "--output-txt",
-        "--no-prints",
-        "--file", audioURL.path
-    ]
-
+    task.arguments = ["--model", model, "--language", "auto", "--output-txt", "--no-prints", "--file", audioURL.path]
     let pipe = Pipe()
-    task.standardOutput = pipe
-    task.standardError = Pipe()
-
+    task.standardOutput = pipe; task.standardError = Pipe()
     task.terminationHandler = { _ in
-        // whisper-cli escribe el resultado en archivo .txt junto al audio
         let txtURL = audioURL.deletingPathExtension().appendingPathExtension("txt")
         if let text = try? String(contentsOf: txtURL, encoding: .utf8) {
-            let cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let cleaned = text
+                .trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "\\[.*?\\]", with: "", options: .regularExpression)
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             try? FileManager.default.removeItem(at: txtURL)
             try? FileManager.default.removeItem(at: audioURL)
             completion(cleaned.isEmpty ? nil : cleaned)
         } else {
-            // Intentar leer stdout
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let text = String(data: data, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let text = (String(data: data, encoding: .utf8) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             try? FileManager.default.removeItem(at: audioURL)
             completion(text.isEmpty ? nil : text)
         }
     }
-
-    do {
-        try task.run()
-    } catch {
-        print("[whisper] error: \(error)")
-        completion(nil)
-    }
+    do { try task.run() } catch { print("[whisper] \(error)"); completion(nil) }
 }
 
-// ── WKWebView wrapper ─────────────────────────────────────────────────────────
-
-import WebKit
+// ── WKWebViewWrapper ──────────────────────────────────────────────────────────
 
 class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     let view: WKWebView
@@ -308,104 +331,69 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
 
     init(frame: NSRect = .zero) {
         let config = WKWebViewConfiguration()
-        let contentController = WKUserContentController()
-        config.userContentController = contentController
+        let cc = WKUserContentController()
+        config.userContentController = cc
         view = WKWebView(frame: frame, configuration: config)
         view.setValue(false, forKey: "drawsBackground")
-
         super.init()
-
-        contentController.add(self, name: "sendMessage")
-        contentController.add(self, name: "loadModels")
-        contentController.add(self, name: "startRecording")
-        contentController.add(self, name: "stopRecording")
-        contentController.add(self, name: "stopStream")
-        contentController.add(self, name: "checkWhisper")
-
+        for name in ["sendMessage","loadModels","startRecording","stopRecording","stopStream","checkWhisper"] {
+            cc.add(self, name: name)
+        }
         loadHTML()
     }
 
-    func userContentController(_ userContentController: WKUserContentController,
-                                didReceive message: WKScriptMessage) {
+    func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
         switch message.name {
         case "sendMessage":
             guard let body = message.body as? [String: String],
                   let prompt = body["prompt"], let model = body["model"] else { return }
             streamResponse(prompt: prompt, model: model)
-
-        case "loadModels":
-            fetchModels()
-
-        case "checkWhisper":
-            checkWhisperInstall()
-
+        case "loadModels":   fetchModels()
+        case "checkWhisper": checkWhisperInstall()
         case "startRecording":
             guard !isRecording else { return }
             requestMicAndRecord()
-
         case "stopStream":
             currentStreamSession?.invalidateAndCancel()
             currentStreamSession = nil
-            DispatchQueue.main.async {
-                self.view.evaluateJavaScript("endStream()", completionHandler: nil)
-            }
-
+            DispatchQueue.main.async { self.view.evaluateJavaScript("endStream()", completionHandler: nil) }
         case "stopRecording":
             guard isRecording else { return }
             isRecording = false
             recorder.onDone = { [weak self] url in
                 guard let self = self, let url = url else {
-                    DispatchQueue.main.async {
-                        self?.view.evaluateJavaScript("onTranscription(null)", completionHandler: nil)
-                    }
+                    DispatchQueue.main.async { self?.view.evaluateJavaScript("onTranscription(null)", completionHandler: nil) }
                     return
                 }
-                DispatchQueue.main.async {
-                    self.view.evaluateJavaScript("onTranscribing()", completionHandler: nil)
-                }
+                DispatchQueue.main.async { self.view.evaluateJavaScript("onTranscribing()", completionHandler: nil) }
                 transcribe(audioURL: url) { [weak self] text in
                     DispatchQueue.main.async {
                         if let t = text {
-                            let escaped = t
-                                .replacingOccurrences(of: "\\", with: "\\\\")
-                                .replacingOccurrences(of: "'", with: "\\'")
-                            self?.view.evaluateJavaScript("onTranscription('\(escaped)')",
-                                completionHandler: nil)
+                            let esc = t.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
+                            self?.view.evaluateJavaScript("onTranscription('\(esc)')", completionHandler: nil)
                         } else {
-                            self?.view.evaluateJavaScript("onTranscription(null)",
-                                completionHandler: nil)
+                            self?.view.evaluateJavaScript("onTranscription(null)", completionHandler: nil)
                         }
                     }
                 }
             }
             recorder.stop()
-
         default: break
         }
     }
 
     func requestMicAndRecord() {
-        // AVAudioApplication requiere macOS 14+, usar API compatible con macOS 13
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .authorized:
-            startRecording()
+        case .authorized: startRecording()
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
                 if granted { DispatchQueue.main.async { self?.startRecording() } }
-                else {
-                    DispatchQueue.main.async {
-                        self?.view.evaluateJavaScript(
-                            "onMicError('Permiso de micrófono denegado.')",
-                            completionHandler: nil)
-                    }
-                }
+                else { DispatchQueue.main.async {
+                    self?.view.evaluateJavaScript("onMicError('Microphone permission denied.')", completionHandler: nil)
+                }}
             }
         default:
-            DispatchQueue.main.async {
-                self.view.evaluateJavaScript(
-                    "onMicError('Permiso denegado. Actívalo en Ajustes > Privacidad > Micrófono.')",
-                    completionHandler: nil)
-            }
+            view.evaluateJavaScript("onMicError('Microphone denied. Enable in System Settings > Privacy > Microphone.')", completionHandler: nil)
         }
     }
 
@@ -416,44 +404,120 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     }
 
     func checkWhisperInstall() {
-        let bins = [WHISPER_BIN, "/opt/homebrew/bin/whisper-cli", "/usr/local/bin/whisper-cli"]
-        let found = bins.contains { FileManager.default.fileExists(atPath: $0) }
+        let hasBin   = findWhisperBin() != nil
         let hasModel = findWhisperModel() != nil
-        view.evaluateJavaScript(
-            "onWhisperStatus(\(found ? "true" : "false"), \(hasModel ? "true" : "false"))",
-            completionHandler: nil)
+        view.evaluateJavaScript("onWhisperStatus(\(hasBin),\(hasModel))", completionHandler: nil)
     }
 
+    // ── Fetch models ──────────────────────────────────────────────────────────
+
     func fetchModels() {
-        guard let url = URL(string: "\(OLLAMA_BASE)/api/tags") else { return }
+        let cfg = BackendConfig.current
+        switch cfg.type {
+        case .ollama:  fetchOllamaModels(cfg: cfg)
+        case .openai:  fetchOpenAIModels(cfg: cfg)
+        }
+    }
+
+    func fetchOllamaModels(cfg: BackendConfig) {
+        guard let url = URL(string: "\(cfg.url)/api/tags") else { return }
         URLSession.shared.dataTask(with: url) { data, _, _ in
             guard let data = data,
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let models = json["models"] as? [[String: Any]] else { return }
             let names = models.compactMap { $0["name"] as? String }
-            let js = "receiveModels(\(jsonString(names)))"
-            DispatchQueue.main.async { self.view.evaluateJavaScript(js, completionHandler: nil) }
+            DispatchQueue.main.async {
+                self.view.evaluateJavaScript("receiveModels(\(jsonString(names)),'ollama')", completionHandler: nil)
+            }
         }.resume()
     }
 
+    func fetchOpenAIModels(cfg: BackendConfig) {
+        guard let url = URL(string: "\(cfg.url)/models") else { return }
+        var req = URLRequest(url: url)
+        if !cfg.apiKey.isEmpty { req.setValue("Bearer \(cfg.apiKey)", forHTTPHeaderField: "Authorization") }
+        URLSession.shared.dataTask(with: req) { data, _, _ in
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let models = json["data"] as? [[String: Any]] else { return }
+            let names = models.compactMap { $0["id"] as? String }.sorted()
+            DispatchQueue.main.async {
+                self.view.evaluateJavaScript("receiveModels(\(jsonString(names)),'openai')", completionHandler: nil)
+            }
+        }.resume()
+    }
+
+    // ── Stream response ───────────────────────────────────────────────────────
+
     func streamResponse(prompt: String, model: String) {
-        guard let url = URL(string: "\(OLLAMA_BASE)/api/generate") else { return }
+        let cfg = BackendConfig.current
+        switch cfg.type {
+        case .ollama: streamOllama(prompt: prompt, model: model, cfg: cfg)
+        case .openai: streamOpenAI(prompt: prompt, model: model, cfg: cfg)
+        }
+    }
+
+    func streamOllama(prompt: String, model: String, cfg: BackendConfig) {
+        guard let url = URL(string: "\(cfg.url)/api/generate") else { return }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "prompt": prompt, "stream": true])
+        startStream(req: req, parser: OllamaStreamParser())
+    }
+
+    func streamOpenAI(prompt: String, model: String, cfg: BackendConfig) {
+        guard let url = URL(string: "\(cfg.url)/chat/completions") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if !cfg.apiKey.isEmpty { req.setValue("Bearer \(cfg.apiKey)", forHTTPHeaderField: "Authorization") }
         req.httpBody = try? JSONSerialization.data(withJSONObject: [
-            "model": model, "prompt": prompt, "stream": true
+            "model": model,
+            "stream": true,
+            "messages": [["role": "user", "content": prompt]]
         ])
+        startStream(req: req, parser: OpenAIStreamParser())
+    }
+
+    func startStream(req: URLRequest, parser: StreamParser) {
         currentStreamSession?.invalidateAndCancel()
-        let session = URLSession(configuration: .default,
-                                 delegate: StreamDelegate(webView: view),
-                                 delegateQueue: nil)
+        let delegate = StreamDelegate(webView: view, parser: parser)
+        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
         currentStreamSession = session
         session.dataTask(with: req).resume()
     }
 
-    func loadHTML() {
-        view.loadHTMLString(chatHTML(), baseURL: nil)
+    func loadHTML() { view.loadHTMLString(chatHTML(), baseURL: nil) }
+}
+
+// ── Stream parsers ────────────────────────────────────────────────────────────
+
+protocol StreamParser {
+    func token(from line: String) -> String?
+}
+
+struct OllamaStreamParser: StreamParser {
+    func token(from line: String) -> String? {
+        guard let d = line.data(using: .utf8),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any]
+        else { return nil }
+        return j["response"] as? String
+    }
+}
+
+struct OpenAIStreamParser: StreamParser {
+    func token(from line: String) -> String? {
+        // SSE format: "data: {...}" or "data: [DONE]"
+        var s = line
+        if s.hasPrefix("data:") { s = String(s.dropFirst(5)).trimmingCharacters(in: .whitespaces) }
+        if s == "[DONE]" || s.isEmpty { return nil }
+        guard let d = s.data(using: .utf8),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+              let choices = j["choices"] as? [[String: Any]],
+              let delta = choices.first?["delta"] as? [String: Any]
+        else { return nil }
+        return delta["content"] as? String
     }
 }
 
@@ -461,49 +525,49 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
 
 class StreamDelegate: NSObject, URLSessionDataDelegate {
     let webView: WKWebView
+    let parser:  StreamParser
     var buffer = Data()
 
-    init(webView: WKWebView) { self.webView = webView }
+    init(webView: WKWebView, parser: StreamParser) {
+        self.webView = webView; self.parser = parser
+    }
 
-    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
-                    didReceive data: Data) {
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         buffer.append(data)
-        let str = String(data: buffer, encoding: .utf8) ?? ""
+        let str   = String(data: buffer, encoding: .utf8) ?? ""
         let lines = str.components(separatedBy: "\n")
         for (i, line) in lines.enumerated() {
             guard !line.isEmpty, i < lines.count - 1 else { continue }
-            if let d = line.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
-               let token = json["response"] as? String {
+            if let token = parser.token(from: line) {
                 let escaped = token
                     .replacingOccurrences(of: "\\", with: "\\\\")
                     .replacingOccurrences(of: "`", with: "\\`")
                 DispatchQueue.main.async {
-                    self.webView.evaluateJavaScript("appendToken(`\(escaped)`)",
-                        completionHandler: nil)
+                    self.webView.evaluateJavaScript("appendToken(`\(escaped)`)", completionHandler: nil)
                 }
             }
         }
         buffer = lines.last.flatMap { $0.isEmpty ? nil : $0.data(using: .utf8) } ?? Data()
     }
 
-    func urlSession(_ session: URLSession, task: URLSessionTask,
-                    didCompleteWithError error: Error?) {
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
         DispatchQueue.main.async {
             self.webView.evaluateJavaScript("endStream()", completionHandler: nil)
         }
     }
 }
 
-// ── HTML ──────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 func jsonString(_ arr: [String]) -> String {
     (try? String(data: JSONSerialization.data(withJSONObject: arr), encoding: .utf8)) ?? "[]"
 }
 
+// ── HTML ──────────────────────────────────────────────────────────────────────
+
 func chatHTML() -> String { return """
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <style>
@@ -525,7 +589,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 #dot{width:6px;height:6px;border-radius:50%;background:var(--accent);
   box-shadow:0 0 5px var(--accent);animation:pulse 2.5s ease-in-out infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-#model-wrap{position:relative;display:flex;align-items:center;gap:8px}
+#header-left{display:flex;align-items:center;gap:8px}
+#backend-badge{font-size:9px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);padding:1px 5px;border:1px solid var(--border);border-radius:3px}
+#model-wrap{position:relative;display:flex;align-items:center;gap:6px}
 #model-btn{background:transparent;border:none;color:var(--muted);
   font-family:var(--font);font-size:11.5px;cursor:pointer;outline:none;
   -webkit-app-region:no-drag;padding:2px 6px;border-radius:3px;
@@ -534,7 +601,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);
 #model-name{color:var(--text)}
 #model-dropdown{display:none;position:fixed;top:44px;left:14px;
   background:#1a1a1e;border:1px solid var(--border);border-radius:6px;
-  min-width:200px;z-index:999;overflow-y:auto;max-height:calc(100vh - 60px);
+  min-width:220px;z-index:999;overflow-y:auto;max-height:calc(100vh - 60px);
   box-shadow:0 8px 24px rgba(0,0,0,.7)}
 #model-dropdown.open{display:block}
 .model-opt{padding:8px 14px;font-size:11.5px;cursor:pointer;color:var(--text);
@@ -566,55 +633,57 @@ html,body{height:100%;background:var(--bg);color:var(--text);
   cursor:pointer;transition:all .15s;flex-shrink:0;margin-bottom:1px;line-height:1}
 .action-btn:hover{border-color:var(--accent);color:var(--accent)}
 #mic-btn{font-size:14px;padding:3px 7px}
-#mic-btn.recording{border-color:var(--rec);color:var(--rec);
-  animation:recpulse 1s ease-in-out infinite}
+#mic-btn.recording{border-color:var(--rec);color:var(--rec);animation:recpulse 1s ease-in-out infinite}
 #mic-btn.transcribing{border-color:var(--muted);color:var(--muted);cursor:default}
-@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.4)}
-  50%{box-shadow:0 0 0 4px rgba(248,113,113,0)}}
-#whisper-hint{font-size:10px;color:var(--muted);padding:4px 14px 0;
-  display:none;letter-spacing:.03em}
-#whisper-hint a{color:var(--accent);text-decoration:none}
-#whisper-hint.visible{display:block}
+@keyframes recpulse{0%,100%{box-shadow:0 0 0 0 rgba(248,113,113,.4)}50%{box-shadow:0 0 0 4px rgba(248,113,113,0)}}
+#btn.stopping{border-color:var(--error);color:var(--error)}
+#hint{font-size:10px;color:var(--muted);padding:4px 14px 0;display:none;letter-spacing:.03em}
+#hint.visible{display:block}
 </style>
 </head>
 <body>
 <div id="app">
   <div id="header">
-    <div id="model-wrap">
+    <div id="header-left">
       <div id="dot"></div>
-      <button id="model-btn">
-        <span id="model-name">cargando…</span>
-        <span style="color:var(--muted);font-size:9px">▾</span>
-      </button>
-      <div id="model-dropdown"></div>
+      <div id="model-wrap">
+        <button id="model-btn">
+          <span id="model-name">loading…</span>
+          <span style="color:var(--muted);font-size:9px">▾</span>
+        </button>
+        <div id="model-dropdown"></div>
+      </div>
+      <span id="backend-badge">ollama</span>
     </div>
   </div>
   <div id="msgs"></div>
-  <div id="whisper-hint"></div>
+  <div id="hint"></div>
   <div id="bottom">
-    <textarea id="inp" placeholder="Mensaje… (Enter)" rows="1"></textarea>
-    <button id="mic-btn" class="action-btn" title="Clic para grabar">🎙</button>
+    <textarea id="inp" placeholder="Message… (Enter to send)" rows="1"></textarea>
+    <button id="mic-btn" class="action-btn" title="Click to record">🎙</button>
     <button id="btn" class="action-btn">↵</button>
   </div>
 </div>
 <script>
-let model = 'llama3.2', busy = false, currentBody = null;
-let micState = 'idle'; // idle | recording | transcribing
-let streaming = false;
-let whisperOk = false;
+let model = '', busy = false, currentBody = null;
+let micState = 'idle', streaming = false;
 
 window.webkit.messageHandlers.loadModels.postMessage({});
 window.webkit.messageHandlers.checkWhisper.postMessage({});
 
-// ── Modelo ────────────────────────────────────────────────────────────────────
+// ── Model dropdown ────────────────────────────────────────────────────────────
 const modelBtn      = document.getElementById('model-btn');
 const modelName     = document.getElementById('model-name');
 const modelDropdown = document.getElementById('model-dropdown');
+const backendBadge  = document.getElementById('backend-badge');
+
 modelBtn.addEventListener('click', e => { e.stopPropagation(); modelDropdown.classList.toggle('open'); });
 document.addEventListener('click', () => modelDropdown.classList.remove('open'));
 
-function receiveModels(models) {
-  if (!models.length) return;
+function receiveModels(models, backend) {
+  backendBadge.textContent = backend;
+  if (!models.length) { modelName.textContent = 'no models'; return; }
+  if (!model) model = models[0];
   const match = models.find(m => m === model || m.startsWith(model.split(':')[0]));
   model = match || models[0];
   modelName.textContent = model.split(':')[0];
@@ -626,66 +695,52 @@ function receiveModels(models) {
     div.addEventListener('click', e => {
       e.stopPropagation(); model = m;
       modelName.textContent = m.split(':')[0];
-      modelDropdown.querySelectorAll('.model-opt').forEach(el =>
-        el.classList.toggle('active', el.textContent === m));
+      modelDropdown.querySelectorAll('.model-opt').forEach(el => el.classList.toggle('active', el.textContent === m));
       modelDropdown.classList.remove('open');
     });
     modelDropdown.appendChild(div);
   });
 }
 
-// ── Whisper status ────────────────────────────────────────────────────────────
+// ── Whisper ───────────────────────────────────────────────────────────────────
 function onWhisperStatus(hasBin, hasModel) {
-  whisperOk = hasBin && hasModel;
-  const hint = document.getElementById('whisper-hint');
-  if (!hasBin) {
-    hint.innerHTML = '⚠ whisper-cli no encontrado. Instala: <a href="#">brew install whisper-cpp</a>';
-    hint.classList.add('visible');
-  } else if (!hasModel) {
-    hint.innerHTML = '⚠ Modelo no encontrado. Ejecuta: <code>whisper-download-model base</code>';
-    hint.classList.add('visible');
-  }
+  const hint = document.getElementById('hint');
+  if (!hasBin) { hint.textContent = '⚠ whisper-cli not found. Install: brew install whisper-cpp'; hint.classList.add('visible'); }
+  else if (!hasModel) { hint.textContent = '⚠ Whisper model not found. Download ggml-base.bin to /opt/homebrew/share/whisper-cpp/'; hint.classList.add('visible'); }
 }
 
-// ── Micrófono ─────────────────────────────────────────────────────────────────
+// ── Mic ───────────────────────────────────────────────────────────────────────
 const micBtn = document.getElementById('mic-btn');
 const btn    = document.getElementById('btn');
 
 micBtn.addEventListener('click', e => {
   e.preventDefault();
   if (micState === 'idle') {
-    // Empezar grabación
     micState = 'recording';
     micBtn.classList.add('recording');
-    micBtn.title = 'Clic para parar';
+    micBtn.title = 'Click to stop';
     window.webkit.messageHandlers.startRecording.postMessage({});
   } else if (micState === 'recording') {
-    // Parar grabación
     micBtn.classList.remove('recording');
-    micBtn.title = 'Clic para grabar';
+    micBtn.title = 'Click to record';
     window.webkit.messageHandlers.stopRecording.postMessage({});
   }
-  // Si está transcribiendo, ignorar clics
 });
 
 btn.addEventListener('click', e => {
   e.preventDefault();
   if (streaming) {
-    // Stop Ollama
     window.webkit.messageHandlers.stopStream.postMessage({});
     streaming = false; busy = false;
     if (currentBody) currentBody.classList.remove('cursor');
     currentBody = null;
-    btn.textContent = '↵';
-    btn.classList.remove('stopping');
+    btn.textContent = '↵'; btn.classList.remove('stopping');
     return;
   }
   send();
 });
 
-function onRecordingStarted() {
-  micState = 'recording';
-}
+function onRecordingStarted() { micState = 'recording'; }
 
 function onTranscribing() {
   micState = 'transcribing';
@@ -696,16 +751,14 @@ function onTranscribing() {
 
 function onTranscription(text) {
   micState = 'idle';
-  micBtn.classList.remove('recording', 'transcribing');
+  micBtn.classList.remove('recording','transcribing');
   micBtn.textContent = '🎙';
-  if (text && text.trim()) {
-    sendText(text.trim());
-  }
+  if (text && text.trim()) sendText(text.trim());
 }
 
 function onMicError(msg) {
   micState = 'idle';
-  micBtn.classList.remove('recording', 'transcribing');
+  micBtn.classList.remove('recording','transcribing');
   micBtn.textContent = '🎙';
   addMsg('err').textContent = msg;
 }
@@ -714,24 +767,20 @@ function onMicError(msg) {
 function addMsg(role) {
   const c = document.getElementById('msgs'), d = document.createElement('div');
   d.className = 'msg ' + role;
-  const L = {user:'tú', ai:model.split(':')[0], err:'error'};
+  const L = {user:'you', ai:model.split(':')[0], err:'error'};
   d.innerHTML = '<div class="lbl">' + (L[role]||role) + '</div><div class="body"></div>';
   c.appendChild(d); c.scrollTop = c.scrollHeight;
   return d.querySelector('.body');
 }
 
 function appendToken(t) {
-  if (currentBody) {
-    currentBody.textContent += t;
-    document.getElementById('msgs').scrollTop = 999999;
-  }
+  if (currentBody) { currentBody.textContent += t; document.getElementById('msgs').scrollTop = 999999; }
 }
 
 function endStream() {
   if (currentBody) currentBody.classList.remove('cursor');
   currentBody = null; busy = false; streaming = false;
-  btn.textContent = '↵';
-  btn.classList.remove('stopping');
+  btn.textContent = '↵'; btn.classList.remove('stopping');
 }
 
 function sendText(text) {
@@ -741,26 +790,20 @@ function sendText(text) {
   currentBody = addMsg('ai');
   currentBody.classList.add('cursor');
   busy = true; streaming = true;
-  btn.textContent = '⏹';
-  btn.classList.add('stopping');
+  btn.textContent = '⏹'; btn.classList.add('stopping');
   window.webkit.messageHandlers.sendMessage.postMessage({prompt: text, model: model});
 }
 
 function send() {
-  const inp = document.getElementById('inp');
-  const text = inp.value.trim();
+  const inp = document.getElementById('inp'), text = inp.value.trim();
   if (!text) return;
   inp.value = ''; inp.style.height = 'auto';
   sendText(text);
 }
 
-// btn listener handled above
 document.getElementById('inp').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
-  setTimeout(() => {
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 72) + 'px';
-  }, 0);
+  setTimeout(() => { e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 72) + 'px'; }, 0);
 });
 </script>
 </body>
