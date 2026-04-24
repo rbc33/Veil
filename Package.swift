@@ -2,12 +2,12 @@
 import PackageDescription
 
 let package = Package(
-    name: "OllamaChat",
+    name: "Veil",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "OllamaChat",
-            path: "Sources/OllamaChat"
+            name: "Veil",
+            path: "Sources/Veil"
         )
     ]
 )

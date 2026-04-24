@@ -120,13 +120,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         typeRow.addArrangedSubview(typeLabel)
         typeRow.addArrangedSubview(typeSel)
 
-        // NIM checkbox
+        // Quick-fill checkboxes
         let nimRow = NSStackView()
         nimRow.orientation = .horizontal
-        nimRow.spacing = 8
-        let nimCheck = NSButton(checkboxWithTitle: "Use NVIDIA NIM (integrate.api.nvidia.com)", target: nil, action: nil)
-        nimCheck.state = (cfg.url.contains("integrate.api.nvidia.com")) ? .on : .off
+        nimRow.spacing = 16
+
+        let nimCheck = NSButton(checkboxWithTitle: "NVIDIA NIM", target: nil, action: nil)
+        nimCheck.state = cfg.url.contains("integrate.api.nvidia.com") ? .on : .off
+
+        let oaiCheck = NSButton(checkboxWithTitle: "OpenAI", target: nil, action: nil)
+        oaiCheck.state = cfg.url.contains("api.openai.com") ? .on : .off
+
+        nimRow.addArrangedSubview(NSTextField(labelWithString: "Quick-fill:"))
         nimRow.addArrangedSubview(nimCheck)
+        nimRow.addArrangedSubview(oaiCheck)
 
         // URL field
         let urlRow = NSStackView()
@@ -146,11 +153,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             weak var urlField: NSTextField?
             weak var typeSel: NSPopUpButton?
             weak var check: NSButton?
+            weak var otherCheck: NSButton?
             @objc func handle() {
                 guard let check = check else { return }
                 if check.state == .on {
                     urlField?.stringValue = "https://integrate.api.nvidia.com/v1"
                     typeSel?.selectItem(at: 1)
+                    otherCheck?.state = .off
                 } else if urlField?.stringValue == "https://integrate.api.nvidia.com/v1" {
                     urlField?.stringValue = ""
                 }
@@ -163,6 +172,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         objc_setAssociatedObject(nimCheck, "nimHandler", nimHandler, .OBJC_ASSOCIATION_RETAIN)
         nimCheck.target = nimHandler
         nimCheck.action = #selector(NimHandler.handle)
+
+        class OAIHandler: NSObject {
+            weak var urlField: NSTextField?
+            weak var typeSel: NSPopUpButton?
+            weak var check: NSButton?
+            weak var otherCheck: NSButton?
+            @objc func handle() {
+                guard let check = check else { return }
+                if check.state == .on {
+                    urlField?.stringValue = "https://api.openai.com/v1"
+                    typeSel?.selectItem(at: 1)
+                    otherCheck?.state = .off
+                } else if urlField?.stringValue == "https://api.openai.com/v1" {
+                    urlField?.stringValue = ""
+                }
+            }
+        }
+        let oaiHandler = OAIHandler()
+        oaiHandler.urlField    = urlField
+        oaiHandler.typeSel     = typeSel
+        oaiHandler.check       = oaiCheck
+        oaiHandler.otherCheck  = nimCheck
+        objc_setAssociatedObject(oaiCheck, "oaiHandler", oaiHandler, .OBJC_ASSOCIATION_RETAIN)
+        oaiCheck.target = oaiHandler
+        oaiCheck.action = #selector(OAIHandler.handle)
+
+        // Make NIM uncheck OpenAI when selected
+        nimHandler.otherCheck = oaiCheck
 
         // API key field
         let keyRow = NSStackView()
@@ -218,7 +255,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func backenHint(_ idx: Int) -> String {
         idx == 0
             ? "Default: http://localhost:11434"
-            : "NIM: https://integrate.api.nvidia.com/v1\nllama.cpp: http://localhost:8080/v1\nLM Studio: http://localhost:1234/v1"
+            : "OpenAI: https://api.openai.com/v1\nNIM: https://integrate.api.nvidia.com/v1\nllama.cpp: http://localhost:8080/v1\nLM Studio: http://localhost:1234/v1"
     }
 
     @objc func quit() { NSApp.terminate(nil) }

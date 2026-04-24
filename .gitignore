@@ -1,2 +1,5 @@
 .build/
-OllamaChat.app/
+OllamaChat.app/*
+OllamaChat.app/Contents/MacOS/OllamaChat
+Veil.app/*
+*.dmg
