@@ -11,6 +11,7 @@ No Dock icon. No trace on capture.
 `NSWindow.sharingType = .none` — a public AppKit API that excludes the window from the display server's capture pipeline before any recording app sees it.
 
 **Invisible in:**
+
 - Zoom, Google Meet, Microsoft Teams screen share
 - QuickTime, OBS, Cmd+Shift+5 screen recording
 - Anything using `CGWindowListCreateImage` or `SCScreenshotManager`
@@ -22,6 +23,7 @@ Only you see it. On your physical display.
 ## Install
 
 **From source:**
+
 ```bash
 git clone <repo> && cd Veil
 bash build.sh
@@ -38,17 +40,29 @@ Requirements: macOS 13+, Xcode Command Line Tools (`xcode-select --install`).
 
 ## Backends
 
-**⬡ → Configure backend…**
+Open via **⬡ → Configure backend…**
 
-| Backend | URL |
-|---------|-----|
-| Ollama (default) | `http://localhost:11434` |
-| llama.cpp | `http://localhost:8080/v1` |
-| LM Studio | `http://localhost:1234/v1` |
-| NVIDIA NIM | `https://integrate.api.nvidia.com/v1` |
-| OpenAI | `https://api.openai.com/v1` |
+| Backend          | URL                                       |
+|------------------|-------------------------------------------|
+| Ollama (default) | `http://localhost:11434`                  |
+| llama.cpp        | `http://localhost:8080/v1`                |
+| LM Studio        | `http://localhost:1234/v1`                |
+| NVIDIA NIM       | `https://integrate.api.nvidia.com/v1`     |
+| OpenAI           | `https://api.openai.com/v1`               |
 
 Config panel fetches available models automatically. Use **Test** to verify connectivity before saving.
+
+### NVIDIA NIM API key
+
+NIM gives free API access to hundreds of models — Llama, Mistral, Gemma, Qwen, DeepSeek, and more. No credit card required.
+
+1. Go to [https://build.nvidia.com](https://build.nvidia.com)
+2. Sign in or create a free account
+3. Click any model → **Get API Key**
+4. Copy the key (starts with `nvapi-`)
+5. In Veil: select **OpenAI-compatible**, set URL to `https://integrate.api.nvidia.com/v1`, paste the key in **API key**
+
+Browse all available models at [build.nvidia.com/explore/discover](https://build.nvidia.com/explore/discover).
 
 ---
 
@@ -64,14 +78,15 @@ curl -L -o /opt/homebrew/share/whisper-cpp/ggml-base.bin \
 
 Press **🎙** → speak → press **🎙** again → transcribes and sends. All on-device.
 
-| Model | Size | Notes |
-|-------|------|-------|
-| `tiny` | 75 MB | Fast, basic accuracy |
-| `base` | 150 MB | Good balance |
-| `small` | 470 MB | Better accuracy |
-| `medium` | 1.5 GB | Best accuracy |
+| Model    | Size   | Notes                |
+|----------|--------|----------------------|
+| `tiny`   | 75 MB  | Fast, basic accuracy |
+| `base`   | 150 MB | Good balance         |
+| `small`  | 470 MB | Better accuracy      |
+| `medium` | 1.5 GB | Best accuracy        |
 
 If macOS denied microphone access:
+
 ```bash
 tccutil reset Microphone com.local.veil
 ```
@@ -90,15 +105,15 @@ Screenshot data stays on your machine. Only sent to the backend you configured.
 
 ## Usage
 
-| Action | How |
-|--------|-----|
-| Send | Type + **Enter** |
-| Stop generation | **⏹** |
-| Switch model | Click model name in header |
-| Voice input | **🎙** → speak → **🎙** |
-| Screenshot | **⌗** → sends with next message |
-| Close | **×** or **Cmd+W** |
-| Configure | **⬡ → Configure backend…** |
+| Action          | How                              |
+|-----------------|----------------------------------|
+| Send            | Type + **Enter**                 |
+| Stop generation | **⏹**                           |
+| Switch model    | Click model name in header       |
+| Voice input     | **🎙** → speak → **🎙**         |
+| Screenshot      | **⌗** → sends with next message  |
+| Close           | **×** or **Cmd+W**               |
+| Configure       | **⬡ → Configure backend…**      |
 
 ---
 
