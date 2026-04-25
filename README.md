@@ -131,6 +131,30 @@ Press **🎙** or **⌘⌥** → speak → press again → transcribed and sent.
 | `small` | 470 MB | Better |
 | `medium` | 1.5 GB | Best |
 
+If macOS denied microphone access:
+
+```bash
+tccutil reset Microphone com.local.veil
+```
+
+### Internal audio (system sound)
+
+macOS does not expose system audio to apps directly. Use [BlackHole](https://github.com/ExistentialAudio/BlackHole) to route it:
+
+```bash
+brew install blackhole-2ch
+```
+
+1. Open **Audio MIDI Setup** (`/Applications/Utilities/`)
+2. Click **+** → **Create Aggregate Device**
+3. Check both **BlackHole 2ch** and your microphone
+4. Click **+** → **Create Multi-Output Device**
+5. Check both **BlackHole 2ch** and your speakers/headphones
+6. **System Settings → Sound → Output** → select the Multi-Output Device
+7. **System Settings → Sound → Input** → select the Aggregate Device
+
+Veil now records mic + system audio together. Revert output device when done.
+
 ---
 
 ## Screenshot analysis
