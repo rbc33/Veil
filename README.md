@@ -40,29 +40,30 @@ Requirements: macOS 13+, Xcode Command Line Tools (`xcode-select --install`).
 
 ## Backends
 
-Open via **⬡ → Settings…**
+Open via **⬡ → Settings…** and pick from the Backend dropdown.
 
-| Backend          | URL                                       |
-|------------------|-------------------------------------------|
-| Ollama (default) | `http://localhost:11434`                  |
-| llama.cpp        | `http://localhost:8080/v1`                |
-| LM Studio        | `http://localhost:1234/v1`                |
-| NVIDIA NIM       | `https://integrate.api.nvidia.com/v1`     |
-| OpenAI           | `https://api.openai.com/v1`               |
+| Backend       | Default URL                                    | Notes                        |
+|---------------|------------------------------------------------|------------------------------|
+| Ollama        | `http://localhost:11434`                       | Local, no key needed         |
+| OpenAI        | `https://api.openai.com/v1`                    | API key required             |
+| Anthropic     | `https://api.anthropic.com/v1`                 | API key required             |
+| OpenRouter    | `https://openrouter.ai/api/v1`                 | API key required             |
+| Azure OpenAI  | *(your endpoint)*                              | API key required             |
+| NVIDIA NIM    | `https://integrate.api.nvidia.com/v1`          | API key required (free tier) |
+| llama.cpp     | `http://localhost:8080/v1`                     | Local, no key needed         |
+| LM Studio     | `http://localhost:1234/v1`                     | Local, no key needed         |
 
-Settings fetches available models automatically. Use **Test** to verify connectivity before saving.
+Any OpenAI-compatible server works (vLLM, LiteLLM, etc.) — select **OpenAI** and set the URL.
 
-### NVIDIA NIM API key
+Selecting a backend auto-fills the URL. **Test** verifies connectivity. Models load automatically.
 
-NIM gives free API access to hundreds of models — Llama, Mistral, Gemma, Qwen, DeepSeek, and more. No credit card required.
+### NVIDIA NIM (free)
 
-1. Go to [https://build.nvidia.com](https://build.nvidia.com)
-2. Sign in or create a free account
-3. Click any model → **Get API Key**
-4. Copy the key (starts with `nvapi-`)
-5. In Veil: select **OpenAI-compatible**, set URL to `https://integrate.api.nvidia.com/v1`, paste the key in **API key**
+1. Go to [build.nvidia.com](https://build.nvidia.com) → sign in → click any model → **Get API Key**
+2. Key starts with `nvapi-`
+3. In Veil: select **NVIDIA NIM**, paste key in **API key**
 
-Browse all available models at [build.nvidia.com/explore/discover](https://build.nvidia.com/explore/discover).
+Hundreds of models: Llama, Mistral, Gemma, Qwen, DeepSeek, and more. No credit card.
 
 ---
 
@@ -76,16 +77,16 @@ curl -L -o /opt/homebrew/share/whisper-cpp/ggml-base.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 ```
 
-Press **🎙** or use the keyboard shortcut → speak → press again → transcribes and sends. All on-device.
+Press **🎙** or the keyboard shortcut → speak → press again → transcribes and sends. All on-device.
 
 Default shortcut: **⌘⌥** (customizable in Settings).
 
-| Model    | Size   | Notes                |
-|----------|--------|----------------------|
-| `tiny`   | 75 MB  | Fast, basic accuracy |
-| `base`   | 150 MB | Good balance         |
-| `small`  | 470 MB | Better accuracy      |
-| `medium` | 1.5 GB | Best accuracy        |
+| Model    | Size   | Notes           |
+|----------|--------|-----------------|
+| `tiny`   | 75 MB  | Fast            |
+| `base`   | 150 MB | Good balance    |
+| `small`  | 470 MB | Better accuracy |
+| `medium` | 1.5 GB | Best accuracy   |
 
 If macOS denied microphone access:
 
@@ -99,13 +100,7 @@ tccutil reset Microphone com.local.veil
 
 Press **⌗** to capture your screen. Veil attaches it to your next message — the model sees your screen.
 
-Works with any vision-capable model (e.g. `llava`, `gpt-4o`, `gemma3`). Screenshot data is sent only to the backend you configured.
-
----
-
-## Conversation context
-
-Full history is maintained within each session. Every message includes all prior exchanges so the model remembers context. Resets when you close the window.
+Works with any vision-capable model (`llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`, etc.). Screenshot data goes only to your configured backend.
 
 ---
 
@@ -113,11 +108,12 @@ Full history is maintained within each session. Every message includes all prior
 
 | Action | How |
 |--------|-----|
-| Send | Type + **Enter** |
+| Send | **Enter** |
+| New line | **Shift+Enter** |
 | Stop generation | **⏹** |
 | Switch model | Click model name in header |
-| Voice input | **🎙** or **⌘⌥** (default) |
-| Screenshot | **⌗** → sends with next message |
+| Voice input | **🎙** or **⌘⌥** |
+| Screenshot | **⌗** → attaches to next message |
 | Close | **×** or **Cmd+W** |
 | Settings | **⬡ → Settings…** |
 
@@ -125,4 +121,4 @@ Full history is maintained within each session. Every message includes all prior
 
 ## Privacy
 
-No telemetry. No analytics. No cloud. Network calls go only to the backend you configure — Ollama runs fully local, nothing leaves your machine. Audio transcription runs on-device via Whisper. Screenshot data is sent only to your configured backend.
+No telemetry. No analytics. No cloud. Network calls go only to the backend you configure. Ollama and local servers (llama.cpp, LM Studio) run fully on-device — nothing leaves your machine. Audio transcription runs on-device via Whisper. Screenshot data is sent only to your configured backend.

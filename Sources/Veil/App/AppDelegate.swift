@@ -3,6 +3,7 @@ import AppKit
 class AppDelegate: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var chatWindow: ChatWindow?
+    var globalHotKey: GlobalHotKey?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -17,6 +18,16 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         try? FileManager.default.createDirectory(
             atPath: NSHomeDirectory() + "/.ollama-chat",
             withIntermediateDirectories: true)
+        globalHotKey = GlobalHotKey { [weak self] in self?.hotKeyToggleChat() }
+    }
+
+    func hotKeyToggleChat() {
+        if chatWindow == nil { chatWindow = ChatWindow() }
+        if chatWindow?.window.isVisible == true {
+            chatWindow?.window.orderOut(nil)
+        } else {
+            chatWindow?.showAndFocus()
+        }
     }
 
     func addEditMenu() {
@@ -56,129 +67,137 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc func configureBackend() {
         let cfg = BackendConfig.current
-        let alert = NSAlert()
-        alert.messageText = "Settings"
-        alert.addButton(withTitle: "Save")
-        alert.addButton(withTitle: "Cancel")
 
-        let stack = NSStackView(frame: NSRect(x: 0, y: 0, width: 360, height: 290))
+        let screenW = NSScreen.main?.frame.width ?? 1440
+        let pad: CGFloat = 20
+        let panelW  = (screenW - 200) * 0.54
+        let fieldW  = panelW - 2 * pad - 90
+
+        let panel = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: panelW, height: 400),
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+        panel.title = "Settings"
+        panel.center()
+        panel.sharingType = .none
+        panel.appearance = NSAppearance(named: .darkAqua)
+        panel.backgroundColor = NSColor(red: 41/255, green: 44/255, blue: 51/255, alpha: 1)
+        panel.alphaValue = 0.9
+        panel.isOpaque = false
+
+        struct Preset {
+            let label: String
+            let type:  BackendType
+            let url:   String
+            let hint:  String
+        }
+        let presets: [Preset] = [
+            Preset(label: "Ollama",        type: .ollama,     url: "http://localhost:11434",              hint: "Local Ollama instance"),
+            Preset(label: "OpenAI",        type: .openai,     url: "https://api.openai.com/v1",           hint: "Requires API key"),
+            Preset(label: "Anthropic",     type: .anthropic,  url: "https://api.anthropic.com/v1",        hint: "Requires API key"),
+            Preset(label: "OpenRouter",    type: .openrouter, url: "https://openrouter.ai/api/v1",        hint: "Requires API key"),
+            Preset(label: "Azure OpenAI",  type: .azure,      url: "",                                    hint: "Enter your Azure endpoint"),
+            Preset(label: "NVIDIA NIM",    type: .openai,     url: "https://integrate.api.nvidia.com/v1", hint: "Requires API key"),
+            Preset(label: "llama.cpp",     type: .openai,     url: "http://localhost:8080/v1",            hint: "Local llama.cpp server"),
+            Preset(label: "LM Studio",     type: .openai,     url: "http://localhost:1234/v1",            hint: "Local LM Studio server"),
+        ]
+
+        let selectedIdx = presets.firstIndex(where: { $0.url == cfg.url && $0.type == cfg.type })
+                       ?? presets.firstIndex(where: { $0.type == cfg.type })
+                       ?? 0
+
+        let stack = NSStackView()
         stack.orientation = .vertical
-        stack.alignment   = .left
-        stack.spacing     = 10
+        stack.alignment   = .leading
+        stack.spacing     = 9
 
-        let typeRow = NSStackView()
-        typeRow.orientation = .horizontal
-        typeRow.spacing = 8
-        let typeLabel = NSTextField(labelWithString: "Backend:")
-        typeLabel.frame.size.width = 70
-        let typeSeg = NSSegmentedControl(labels: ["Ollama", "OpenAI-compatible"], trackingMode: .selectOne, target: nil, action: nil)
-        typeSeg.selectedSegment = cfg.type == .ollama ? 0 : 1
-        typeRow.addArrangedSubview(typeLabel)
-        typeRow.addArrangedSubview(typeSeg)
-
-        let nimRow = NSStackView()
-        nimRow.orientation = .horizontal
-        nimRow.spacing = 16
-
-        let nimCheck = NSButton(checkboxWithTitle: "NVIDIA NIM", target: nil, action: nil)
-        nimCheck.state = cfg.url.contains("integrate.api.nvidia.com") ? .on : .off
-
-        let oaiCheck = NSButton(checkboxWithTitle: "OpenAI", target: nil, action: nil)
-        oaiCheck.state = cfg.url.contains("api.openai.com") ? .on : .off
-
-        nimRow.addArrangedSubview(NSTextField(labelWithString: "Quick-fill:"))
-        nimRow.addArrangedSubview(nimCheck)
-        nimRow.addArrangedSubview(oaiCheck)
+        let backendRow = NSStackView()
+        backendRow.orientation = .horizontal
+        backendRow.spacing = 8
+        let backendLabel = NSTextField(labelWithString: "Backend:")
+        backendLabel.frame.size.width = 70
+        let backendPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+        backendPopup.addItems(withTitles: presets.map(\.label))
+        backendPopup.selectItem(at: selectedIdx)
+        backendRow.addArrangedSubview(backendLabel)
+        backendRow.addArrangedSubview(backendPopup)
 
         let urlRow = NSStackView()
         urlRow.orientation = .horizontal
         urlRow.spacing = 8
         let urlLabel = NSTextField(labelWithString: "URL:")
         urlLabel.frame.size.width = 70
-        let urlField = NSTextField(frame: NSRect(x: 0, y: 0, width: 270, height: 24))
+        let urlField = NSTextField(frame: NSRect(x: 0, y: 0, width: fieldW, height: 24))
         urlField.stringValue = cfg.url
         urlField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
         urlField.placeholderString = "http://localhost:11434"
+        urlField.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        urlField.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         urlRow.addArrangedSubview(urlLabel)
         urlRow.addArrangedSubview(urlField)
 
-        class NimHandler: NSObject {
-            weak var urlField: NSTextField?
-            weak var typeSeg: NSSegmentedControl?
-            weak var check: NSButton?
-            weak var otherCheck: NSButton?
-            @objc func handle() {
-                guard let check = check else { return }
-                if check.state == .on {
-                    urlField?.stringValue = "https://integrate.api.nvidia.com/v1"
-                    typeSeg?.selectedSegment = 1
-                    otherCheck?.state = .off
-                } else if urlField?.stringValue == "https://integrate.api.nvidia.com/v1" {
-                    urlField?.stringValue = ""
-                }
-            }
-        }
-        let nimHandler = NimHandler()
-        nimHandler.urlField = urlField
-        nimHandler.typeSeg  = typeSeg
-        nimHandler.check    = nimCheck
-        objc_setAssociatedObject(nimCheck, "nimHandler", nimHandler, .OBJC_ASSOCIATION_RETAIN)
-        nimCheck.target = nimHandler
-        nimCheck.action = #selector(NimHandler.handle)
+        let hint = NSTextField(labelWithString: presets[selectedIdx].hint)
+        hint.textColor = .secondaryLabelColor
+        hint.font = NSFont.systemFont(ofSize: 10)
+        hint.maximumNumberOfLines = 1
 
-        class OAIHandler: NSObject {
+        class BackendPopupHandler: NSObject {
             weak var urlField: NSTextField?
-            weak var typeSeg: NSSegmentedControl?
-            weak var check: NSButton?
-            weak var otherCheck: NSButton?
+            weak var hintField: NSTextField?
+            weak var backendPopup: NSPopUpButton?
+            var presets: [Preset] = []
             @objc func handle() {
-                guard let check = check else { return }
-                if check.state == .on {
-                    urlField?.stringValue = "https://api.openai.com/v1"
-                    typeSeg?.selectedSegment = 1
-                    otherCheck?.state = .off
-                } else if urlField?.stringValue == "https://api.openai.com/v1" {
-                    urlField?.stringValue = ""
-                }
+                let idx = backendPopup?.indexOfSelectedItem ?? 0
+                guard idx < presets.count else { return }
+                let p = presets[idx]
+                if !p.url.isEmpty { urlField?.stringValue = p.url }
+                hintField?.stringValue = p.hint
             }
         }
-        let oaiHandler = OAIHandler()
-        oaiHandler.urlField    = urlField
-        oaiHandler.typeSeg     = typeSeg
-        oaiHandler.check       = oaiCheck
-        oaiHandler.otherCheck  = nimCheck
-        objc_setAssociatedObject(oaiCheck, "oaiHandler", oaiHandler, .OBJC_ASSOCIATION_RETAIN)
-        oaiCheck.target = oaiHandler
-        oaiCheck.action = #selector(OAIHandler.handle)
-        nimHandler.otherCheck = oaiCheck
+        let bpHandler = BackendPopupHandler()
+        bpHandler.urlField     = urlField
+        bpHandler.hintField    = hint
+        bpHandler.backendPopup = backendPopup
+        bpHandler.presets      = presets
+        objc_setAssociatedObject(backendPopup, "bpHandler", bpHandler, .OBJC_ASSOCIATION_RETAIN)
+        backendPopup.target = bpHandler
+        backendPopup.action = #selector(BackendPopupHandler.handle)
 
         let keyRow = NSStackView()
         keyRow.orientation = .horizontal
         keyRow.spacing = 8
         let keyLabel = NSTextField(labelWithString: "API key:")
         keyLabel.frame.size.width = 70
-        let keyField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 270, height: 24))
+        let keyField = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: fieldW, height: 24))
         keyField.stringValue = cfg.apiKey
         keyField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-        keyField.placeholderString = "Optional (required for NIM)"
+        keyField.placeholderString = "Optional"
         keyRow.addArrangedSubview(keyLabel)
         keyRow.addArrangedSubview(keyField)
 
         class BackendTestHandler: NSObject {
             weak var urlField: NSTextField?
             weak var keyField: NSSecureTextField?
-            weak var typeSeg: NSSegmentedControl?
+            weak var backendPopup: NSPopUpButton?
             weak var statusLbl: NSTextField?
             var modelPicker: PrivateDropdown?
+            var presets: [Preset] = []
+
+            var currentType: BackendType {
+                let idx = backendPopup?.indexOfSelectedItem ?? 0
+                return idx < presets.count ? presets[idx].type : .ollama
+            }
 
             @objc func test() {
                 guard let url = urlField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
                       let status = statusLbl else { return }
-                let apiType = typeSeg?.selectedSegment ?? 0
-                let apiKey  = keyField?.stringValue ?? ""
+                let isOllama = currentType == .ollama
+                let apiKey   = keyField?.stringValue ?? ""
                 status.textColor   = .secondaryLabelColor
                 status.stringValue = "Testing…"
-                let endpoint = apiType == 0 ? "\(url)/api/tags" : "\(url)/models"
+                let endpoint = isOllama ? "\(url)/api/tags" : "\(url)/models"
                 guard let reqURL = URL(string: endpoint) else {
                     status.stringValue = "✗ Invalid URL"; status.textColor = .systemRed; return
                 }
@@ -201,17 +220,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             @objc func refresh() {
                 guard let url = urlField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
                       let picker = modelPicker else { return }
-                let apiType = typeSeg?.selectedSegment ?? 0
-                let apiKey  = keyField?.stringValue ?? ""
+                let isOllama = currentType == .ollama
+                let apiKey   = keyField?.stringValue ?? ""
                 picker.items = ["Loading…"]
-                let endpoint = apiType == 0 ? "\(url)/api/tags" : "\(url)/models"
+                let endpoint = isOllama ? "\(url)/api/tags" : "\(url)/models"
                 guard let reqURL = URL(string: endpoint) else { picker.items = ["Invalid URL"]; return }
                 var req = URLRequest(url: reqURL, timeoutInterval: 5)
                 if !apiKey.isEmpty { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
                 URLSession.shared.dataTask(with: req) { data, _, _ in
                     var names: [String] = []
                     if let data = data {
-                        if apiType == 0 {
+                        if isOllama {
                             if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                                let models = json["models"] as? [[String: Any]] {
                                 names = models.compactMap { $0["name"] as? String }
@@ -245,9 +264,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         let modelPicker = PrivateDropdown()
         modelPicker.selected = UserDefaults.standard.string(forKey: "selectedModel") ?? ""
-        modelPicker.onSelect = { model in
-            UserDefaults.standard.set(model, forKey: "selectedModel")
-        }
+        modelPicker.onSelect = { model in UserDefaults.standard.set(model, forKey: "selectedModel") }
         let modelsRow = NSStackView()
         modelsRow.orientation = .horizontal
         modelsRow.spacing = 8
@@ -262,29 +279,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         objc_setAssociatedObject(stack, "modelPicker", modelPicker, .OBJC_ASSOCIATION_RETAIN)
 
         let testHandler = BackendTestHandler()
-        testHandler.urlField    = urlField
-        testHandler.keyField    = keyField
-        testHandler.typeSeg     = typeSeg
-        testHandler.statusLbl   = statusLbl
-        testHandler.modelPicker = modelPicker
+        testHandler.urlField     = urlField
+        testHandler.keyField     = keyField
+        testHandler.backendPopup = backendPopup
+        testHandler.statusLbl    = statusLbl
+        testHandler.modelPicker  = modelPicker
+        testHandler.presets      = presets
         objc_setAssociatedObject(stack, "testHandler", testHandler, .OBJC_ASSOCIATION_RETAIN)
         testBtn.target    = testHandler
         testBtn.action    = #selector(BackendTestHandler.test)
         refreshBtn.target = testHandler
         refreshBtn.action = #selector(BackendTestHandler.refresh)
         testHandler.refresh()
-
-        let hint = NSTextField(labelWithString: "")
-        hint.textColor = .secondaryLabelColor
-        hint.font = NSFont.systemFont(ofSize: 10)
-        hint.stringValue = backenHint(typeSeg.selectedSegment)
-        hint.maximumNumberOfLines = 2
-        hint.lineBreakMode = .byWordWrapping
-        hint.frame.size.width = 360
-
-        let obs = typeSeg.observe(\.selectedSegment) { seg, _ in
-            hint.stringValue = self.backenHint(seg.selectedSegment)
-        }
 
         let shortcutRow = NSStackView()
         shortcutRow.orientation = .horizontal
@@ -301,39 +307,121 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         shortcutRow.addArrangedSubview(shortcutHint)
         objc_setAssociatedObject(stack, "recorder", recorder, .OBJC_ASSOCIATION_RETAIN)
 
-        stack.addArrangedSubview(typeRow)
-        stack.addArrangedSubview(nimRow)
+        let sysLabel = NSTextField(labelWithString: "System prompt:")
+        sysLabel.font = NSFont.systemFont(ofSize: 11)
+        let sysTextView = NSTextView()
+        sysTextView.isEditable = true
+        sysTextView.isRichText = false
+        sysTextView.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        sysTextView.string = UserDefaults.standard.string(forKey: "systemPrompt") ?? ""
+        sysTextView.textContainerInset = NSSize(width: 4, height: 4)
+        sysTextView.backgroundColor = NSColor(red: 30/255, green: 32/255, blue: 38/255, alpha: 1)
+        let sysScroll = NSScrollView()
+        sysScroll.documentView = sysTextView
+        sysScroll.hasVerticalScroller = true
+        sysScroll.autohidesScrollers = true
+        sysScroll.borderType = .lineBorder
+        sysScroll.layer?.borderColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        sysScroll.wantsLayer = true
+        sysScroll.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        sysScroll.widthAnchor.constraint(equalToConstant: (panelW - 2 * pad) * 0.9).isActive = true
+
+        let sysRow = NSStackView()
+        sysRow.orientation = .vertical
+        sysRow.alignment = .leading
+        sysRow.spacing = 3
+        sysRow.addArrangedSubview(sysLabel)
+        sysRow.addArrangedSubview(sysScroll)
+
+        stack.addArrangedSubview(backendRow)
         stack.addArrangedSubview(urlRow)
+        stack.addArrangedSubview(hint)
         stack.addArrangedSubview(keyRow)
         stack.addArrangedSubview(testRow)
         stack.addArrangedSubview(modelsRow)
         stack.addArrangedSubview(shortcutRow)
-        stack.addArrangedSubview(hint)
-        alert.accessoryView = stack
-        alert.window.initialFirstResponder = urlField
-        alert.window.sharingType = .none
+        stack.addArrangedSubview(sysRow)
+        stack.setCustomSpacing(2, after: sysRow)
 
-        let result = alert.runModal()
+        var saved = false
+        let saveBtn   = NSButton(title: "Save",   target: nil, action: nil)
+        let cancelBtn = NSButton(title: "Cancel", target: nil, action: nil)
+        saveBtn.bezelStyle   = .rounded
+        cancelBtn.bezelStyle = .rounded
+        saveBtn.keyEquivalent   = "\r"
+        cancelBtn.keyEquivalent = "\u{1b}"
+
+        class BtnHandler: NSObject {
+            var onSave: (() -> Void)?
+            var onCancel: (() -> Void)?
+            @objc func save()   { onSave?()   }
+            @objc func cancel() { onCancel?() }
+        }
+        let btnHandler = BtnHandler()
+        btnHandler.onSave   = { saved = true;  NSApp.stopModal() }
+        btnHandler.onCancel = { saved = false; NSApp.stopModal() }
+        saveBtn.target   = btnHandler; saveBtn.action   = #selector(BtnHandler.save)
+        cancelBtn.target = btnHandler; cancelBtn.action = #selector(BtnHandler.cancel)
+
+        let btnRow = NSStackView()
+        btnRow.orientation = .horizontal
+        btnRow.spacing = 8
+        btnRow.addArrangedSubview(NSView())
+        btnRow.addArrangedSubview(cancelBtn)
+        btnRow.addArrangedSubview(saveBtn)
+
+        let iconView = NSImageView()
+        iconView.image = NSApp.applicationIconImage
+        iconView.imageScaling = .scaleProportionallyDown
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        iconView.heightAnchor.constraint(equalToConstant: 64).isActive = true
+
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        btnRow.translatesAutoresizingMaskIntoConstraints = false
+
+        if let cv = panel.contentView {
+            cv.wantsLayer = true
+            cv.layer?.backgroundColor = NSColor(red: 41/255, green: 44/255, blue: 51/255, alpha: 1).cgColor
+            cv.addSubview(iconView)
+            cv.addSubview(stack)
+            cv.addSubview(btnRow)
+            NSLayoutConstraint.activate([
+                iconView.centerXAnchor.constraint(equalTo: cv.centerXAnchor),
+                iconView.topAnchor.constraint(equalTo: cv.topAnchor, constant: pad),
+
+                stack.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: 10),
+                stack.leadingAnchor.constraint(equalTo: cv.leadingAnchor, constant: pad),
+                stack.trailingAnchor.constraint(equalTo: cv.trailingAnchor, constant: -pad),
+
+                btnRow.topAnchor.constraint(equalTo: stack.bottomAnchor, constant: 6),
+                btnRow.leadingAnchor.constraint(equalTo: cv.leadingAnchor, constant: pad),
+                btnRow.trailingAnchor.constraint(equalTo: cv.trailingAnchor, constant: -pad),
+                btnRow.bottomAnchor.constraint(equalTo: cv.bottomAnchor, constant: -pad),
+            ])
+        }
+
+        objc_setAssociatedObject(panel, "btnHandler", btnHandler, .OBJC_ASSOCIATION_RETAIN)
+        panel.initialFirstResponder = urlField
+
+        NSApp.runModal(for: panel)
+        panel.orderOut(nil)
         modelPicker.close()
-        if result == .alertFirstButtonReturn {
+
+        if saved {
+            let idx = backendPopup.indexOfSelectedItem
+            let preset = idx < presets.count ? presets[idx] : presets[0]
             var newCfg = BackendConfig(
-                type:   typeSeg.selectedSegment == 0 ? .ollama : .openai,
+                type:   preset.type,
                 url:    urlField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
                 apiKey: keyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             )
-            if newCfg.url.isEmpty {
-                newCfg.url = newCfg.type == .ollama ? "http://localhost:11434" : "http://localhost:8080"
-            }
+            if newCfg.url.isEmpty { newCfg.url = preset.url }
             BackendConfig.current = newCfg
+            let sysPrompt = sysTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            UserDefaults.standard.set(sysPrompt.isEmpty ? nil : sysPrompt, forKey: "systemPrompt")
             chatWindow?.webView.fetchModels()
         }
-        _ = obs
-    }
-
-    func backenHint(_ idx: Int) -> String {
-        idx == 0
-            ? "Default: http://localhost:11434"
-            : "OpenAI: https://api.openai.com/v1\nNIM: https://integrate.api.nvidia.com/v1\nllama.cpp: http://localhost:8080/v1\nLM Studio: http://localhost:1234/v1"
     }
 
     @objc func quit() { NSApp.terminate(nil) }

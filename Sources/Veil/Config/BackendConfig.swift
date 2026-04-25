@@ -1,8 +1,11 @@
 import Foundation
 
 enum BackendType: String {
-    case ollama = "ollama"
-    case openai = "openai"
+    case ollama     = "ollama"
+    case openai     = "openai"
+    case anthropic  = "anthropic"
+    case openrouter = "openrouter"
+    case azure      = "azure"
 }
 
 struct BackendConfig {

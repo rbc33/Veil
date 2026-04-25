@@ -28,8 +28,9 @@ class StreamDelegate: NSObject, URLSessionDataDelegate {
     }
 
     func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        let isError = error != nil
         DispatchQueue.main.async {
-            self.webView.evaluateJavaScript("endStream()", completionHandler: nil)
+            self.webView.evaluateJavaScript("endStream(\(isError))", completionHandler: nil)
         }
     }
 }

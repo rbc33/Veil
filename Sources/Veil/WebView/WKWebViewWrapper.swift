@@ -121,8 +121,11 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     func fetchModels() {
         let cfg = BackendConfig.current
         switch cfg.type {
-        case .ollama:  fetchOllamaModels(cfg: cfg)
-        case .openai:  fetchOpenAIModels(cfg: cfg)
+        case .ollama:      fetchOllamaModels(cfg: cfg)
+        case .openai:      fetchOpenAIModels(cfg: cfg)
+        case .anthropic:   fetchAnthropicModels(cfg: cfg)
+        case .openrouter:  fetchOpenAIModels(cfg: cfg)
+        case .azure:       fetchOpenAIModels(cfg: cfg)
         }
     }
 
@@ -135,6 +138,23 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
             let names = models.compactMap { $0["name"] as? String }
             DispatchQueue.main.async {
                 self.view.evaluateJavaScript("receiveModels(\(jsonString(names)),'ollama')", completionHandler: nil)
+            }
+        }.resume()
+    }
+
+    func fetchAnthropicModels(cfg: BackendConfig) {
+        let base = cfg.url.isEmpty ? "https://api.anthropic.com/v1" : cfg.url
+        guard let url = URL(string: "\(base)/models") else { return }
+        var req = URLRequest(url: url)
+        req.setValue(cfg.apiKey, forHTTPHeaderField: "x-api-key")
+        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        URLSession.shared.dataTask(with: req) { data, _, _ in
+            guard let data = data,
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let models = json["data"] as? [[String: Any]] else { return }
+            let names = models.compactMap { $0["id"] as? String }.sorted()
+            DispatchQueue.main.async {
+                self.view.evaluateJavaScript("receiveModels(\(jsonString(names)),'openai')", completionHandler: nil)
             }
         }.resume()
     }
@@ -156,9 +176,16 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
 
     func streamResponse(messages: [[String: Any]], model: String, image: String? = nil) {
         let cfg = BackendConfig.current
+        var msgs = messages
+        if let sp = UserDefaults.standard.string(forKey: "systemPrompt"), !sp.isEmpty {
+            msgs.insert(["role": "system", "content": sp], at: 0)
+        }
         switch cfg.type {
-        case .ollama: streamOllama(messages: messages, model: model, cfg: cfg, image: image)
-        case .openai: streamOpenAI(messages: messages, model: model, cfg: cfg, image: image)
+        case .ollama:     streamOllama(messages: msgs, model: model, cfg: cfg, image: image)
+        case .openai:     streamOpenAI(messages: msgs, model: model, cfg: cfg, image: image)
+        case .anthropic:  streamAnthropic(messages: msgs, model: model, cfg: cfg, image: image)
+        case .openrouter: streamOpenAI(messages: msgs, model: model, cfg: cfg, image: image)
+        case .azure:      streamAzure(messages: msgs, model: model, cfg: cfg, image: image)
         }
     }
 
@@ -196,6 +223,56 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         }
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "stream": true, "messages": msgs])
         startStream(req: req, parser: OpenAIStreamParser())
+    }
+
+    func streamAzure(messages: [[String: Any]], model: String, cfg: BackendConfig, image: String? = nil) {
+        guard let url = URL(string: "\(cfg.url)/chat/completions") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if !cfg.apiKey.isEmpty { req.setValue(cfg.apiKey, forHTTPHeaderField: "api-key") }
+        var msgs = messages
+        if let img = image, !msgs.isEmpty {
+            var last = msgs[msgs.count - 1]
+            if let text = last["content"] as? String {
+                last["content"] = [
+                    ["type": "text", "text": text],
+                    ["type": "image_url", "image_url": ["url": "data:image/png;base64,\(img)"]]
+                ]
+                msgs[msgs.count - 1] = last
+            }
+        }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "stream": true, "messages": msgs])
+        startStream(req: req, parser: OpenAIStreamParser())
+    }
+
+    func streamAnthropic(messages: [[String: Any]], model: String, cfg: BackendConfig, image: String? = nil) {
+        let base = cfg.url.isEmpty ? "https://api.anthropic.com/v1" : cfg.url
+        guard let url = URL(string: "\(base)/messages") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(cfg.apiKey, forHTTPHeaderField: "x-api-key")
+        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+
+        var userMsgs = messages.filter { ($0["role"] as? String) != "system" }
+        let systemText = messages.first(where: { ($0["role"] as? String) == "system" })?["content"] as? String
+
+        if let img = image, !userMsgs.isEmpty {
+            var last = userMsgs[userMsgs.count - 1]
+            if let text = last["content"] as? String {
+                last["content"] = [
+                    ["type": "text", "text": text],
+                    ["type": "image", "source": ["type": "base64", "media_type": "image/png", "data": img]]
+                ]
+                userMsgs[userMsgs.count - 1] = last
+            }
+        }
+
+        var body: [String: Any] = ["model": model, "max_tokens": 8096, "stream": true, "messages": userMsgs]
+        if let sys = systemText, !sys.isEmpty { body["system"] = sys }
+        req.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        startStream(req: req, parser: AnthropicStreamParser())
     }
 
     func startStream(req: URLRequest, parser: StreamParser) {

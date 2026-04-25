@@ -16,6 +16,21 @@ struct OllamaStreamParser: StreamParser {
     }
 }
 
+struct AnthropicStreamParser: StreamParser {
+    func token(from line: String) -> String? {
+        var s = line
+        if s.hasPrefix("data:") { s = String(s.dropFirst(5)).trimmingCharacters(in: .whitespaces) }
+        if s.isEmpty { return nil }
+        guard let d = s.data(using: .utf8),
+              let j = try? JSONSerialization.jsonObject(with: d) as? [String: Any],
+              (j["type"] as? String) == "content_block_delta",
+              let delta = j["delta"] as? [String: Any],
+              (delta["type"] as? String) == "text_delta"
+        else { return nil }
+        return delta["text"] as? String
+    }
+}
+
 struct OpenAIStreamParser: StreamParser {
     func token(from line: String) -> String? {
         var s = line

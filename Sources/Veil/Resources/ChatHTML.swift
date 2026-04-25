@@ -60,7 +60,7 @@ html,body{height:100%;background:transparent;color:var(--text);
 #msgs{flex:1;overflow-y:auto;padding:14px;scroll-behavior:smooth}
 #msgs::-webkit-scrollbar{width:3px}
 #msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.msg{margin-bottom:16px;animation:fadein .15s ease;background:var(--surface);padding:12px;border-radius:8px;border:1px solid var(--border);transition:all 0.3s;}
+.msg{position:relative;margin-bottom:16px;animation:fadein .15s ease;background:var(--surface);padding:12px;border-radius:8px;border:1px solid var(--border);transition:all 0.3s;}
 .msg.user{background:transparent;border-color:transparent;padding:4px 0px;}
 @keyframes fadein{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
 .lbl{font-size:10px;letter-spacing:.07em;text-transform:uppercase;margin-bottom:3px;color:var(--muted)}
@@ -68,10 +68,37 @@ html,body{height:100%;background:transparent;color:var(--text);
 .msg.ai .lbl{color:var(--accent)}
 .msg.err .lbl{color:var(--error)}
 .body{white-space:pre-wrap;word-break:break-word}
+.body.rendered{white-space:normal}
+.body.rendered h1{font-size:1.15em;font-weight:600;margin:10px 0 4px;color:#e5e5ea}
+.body.rendered h2{font-size:1.05em;font-weight:600;margin:8px 0 3px;color:#e5e5ea}
+.body.rendered h3{font-size:1em;font-weight:600;margin:6px 0 3px;color:#e5e5ea}
+.body.rendered pre{background:rgba(0,0,0,.35);border-radius:6px;padding:10px 12px;
+  overflow-x:auto;margin:8px 0;white-space:pre;border:1px solid var(--border)}
+.body.rendered code{background:rgba(0,0,0,.3);border-radius:3px;padding:1px 5px;font-size:.92em}
+.body.rendered pre code{background:none;padding:0;font-size:.9em}
+.body.rendered ul,.body.rendered ol{padding-left:18px;margin:4px 0}
+.body.rendered li{margin:2px 0}
+.body.rendered strong{color:#e5e5ea;font-weight:600}
+.body.rendered em{font-style:italic;color:#c8c8d0}
+.body.rendered hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+.body.rendered del{text-decoration:line-through;color:var(--muted)}
+.body.rendered a{color:var(--accent);text-decoration:none}
+.body.rendered a:hover{text-decoration:underline}
 .msg.user .body{color:var(--user)}
 .msg.err .body{color:var(--error)}
 .cursor::after{content:'▋';color:var(--accent);animation:blink .65s step-end infinite;margin-left:1px}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.copy-btn{position:absolute;top:8px;right:8px;background:none;
+  border:1px solid var(--border);color:var(--muted);
+  font-family:var(--font);font-size:10px;padding:2px 6px;border-radius:3px;
+  cursor:pointer;opacity:0;transition:opacity .15s, color .1s, border-color .1s;line-height:1.4}
+.msg:hover .copy-btn{opacity:1}
+.copy-btn:hover{color:var(--accent);border-color:var(--accent)}
+.retry-btn{display:inline-block;margin-top:8px;background:none;
+  border:1px solid var(--error);color:var(--error);
+  font-family:var(--font);font-size:11px;padding:3px 10px;border-radius:3px;
+  cursor:pointer;transition:all .15s}
+.retry-btn:hover{background:var(--error);color:#1a1a1a}
 #bottom{border-top:1px solid var(--border);background:var(--surface);
   padding:9px 14px;display:flex;align-items:flex-end;gap:6px;flex-shrink:0}
 #inp{flex:1;background:transparent;border:none;color:var(--text);
@@ -135,13 +162,74 @@ let micState = 'idle', streaming = false;
 let autoScroll = true;
 let hasScreenshot = false;
 let messages = [];
-const CTX_WINDOW = 20; // max messages sent to API (keeps last N)
+const CTX_WINDOW = 20;
+let lastUserText = '';
+let _messagesLenBeforeLastUser = 0;
 
 function setSavedModel(m) { window.savedModel = m; }
 
 window.webkit.messageHandlers.loadModels.postMessage({});
 window.webkit.messageHandlers.checkWhisper.postMessage({});
 window.webkit.messageHandlers.initModel.postMessage({});
+
+// ── Markdown ──────────────────────────────────────────────────────────────────
+function inlineMd(text) {
+  let s = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/\\*\\*\\*(.+?)\\*\\*\\*/g, '<strong><em>$1</em></strong>');
+  s = s.replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>');
+  s = s.replace(/\\*([^\\s*][^*]*)\\*/g, '<em>$1</em>');
+  s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
+  return s;
+}
+
+function renderMarkdown(src) {
+  const parts = src.split(/(```[\\s\\S]*?```)/);
+  let out = '';
+  for (let pi = 0; pi < parts.length; pi++) {
+    const part = parts[pi];
+    if (part.startsWith('```')) {
+      const m = part.match(/```(\\w*)\\n?([\\s\\S]*?)```/);
+      if (m) {
+        const code = m[2].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        out += '<pre><code>' + code + '</code></pre>';
+      } else {
+        out += part.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      }
+      continue;
+    }
+    const lines = part.split('\\n');
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      const hm = line.match(/^(#{1,3})\\s+(.+)$/);
+      if (hm) { out += '<h' + hm[1].length + '>' + inlineMd(hm[2]) + '</h' + hm[1].length + '>'; i++; continue; }
+      if (/^[-*]{3,}$/.test(line.trim())) { out += '<hr>'; i++; continue; }
+      if (/^[\\s]*[-*+]\\s/.test(line)) {
+        out += '<ul>';
+        while (i < lines.length && /^[\\s]*[-*+]\\s/.test(lines[i])) {
+          out += '<li>' + inlineMd(lines[i].replace(/^[\\s]*[-*+]\\s+/, '')) + '</li>';
+          i++;
+        }
+        out += '</ul>';
+        continue;
+      }
+      if (/^[\\s]*\\d+\\.\\s/.test(line)) {
+        out += '<ol>';
+        while (i < lines.length && /^[\\s]*\\d+\\.\\s/.test(lines[i])) {
+          out += '<li>' + inlineMd(lines[i].replace(/^[\\s]*\\d+\\.\\s+/, '')) + '</li>';
+          i++;
+        }
+        out += '</ol>';
+        continue;
+      }
+      if (!line.trim()) { out += '<br>'; i++; continue; }
+      out += inlineMd(line) + '<br>';
+      i++;
+    }
+  }
+  return out;
+}
 
 // ── Model dropdown ────────────────────────────────────────────────────────────
 const modelBtn      = document.getElementById('model-btn');
@@ -171,7 +259,6 @@ autoscrollBtn.addEventListener('click', e => {
   }
 });
 
-// Pause auto-scroll if user scrolls up manually
 document.getElementById('msgs').addEventListener('scroll', () => {
   const msgs = document.getElementById('msgs');
   const atBottom = msgs.scrollHeight - msgs.scrollTop - msgs.clientHeight < 40;
@@ -275,8 +362,16 @@ btn.addEventListener('click', e => {
     window.webkit.messageHandlers.stopStream.postMessage({});
     streaming = false; busy = false;
     if (currentBody) {
-      if (!currentBody.textContent) messages.pop(); // remove user msg if no response yet
+      const raw = currentBody.textContent;
       currentBody.classList.remove('cursor');
+      if (raw) {
+        currentBody.setAttribute('data-raw', raw);
+        currentBody.innerHTML = renderMarkdown(raw);
+        currentBody.classList.add('rendered');
+        messages.push({role: 'assistant', content: raw});
+      } else {
+        messages.length = _messagesLenBeforeLastUser;
+      }
     }
     currentBody = null;
     btn.textContent = '↵'; btn.classList.remove('stopping');
@@ -316,6 +411,22 @@ function addMsg(role) {
   d.className = 'msg ' + role;
   const L = {user:'you', ai:model.split(':')[0], err:'error'};
   d.innerHTML = '<div class="lbl">' + (L[role]||role) + '</div><div class="body"></div>';
+  if (role === 'ai') {
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.title = 'Copy';
+    copyBtn.textContent = '⎘';
+    copyBtn.addEventListener('click', () => {
+      const body = d.querySelector('.body');
+      const text = body.getAttribute('data-raw') || body.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        copyBtn.textContent = '✓';
+        copyBtn.style.color = 'var(--accent)';
+        setTimeout(() => { copyBtn.textContent = '⎘'; copyBtn.style.color = ''; }, 1500);
+      });
+    });
+    d.appendChild(copyBtn);
+  }
   c.appendChild(d); c.scrollTop = c.scrollHeight;
   return d.querySelector('.body');
 }
@@ -329,13 +440,33 @@ function appendToken(t) {
   }
 }
 
-function endStream() {
-  if (currentBody) {
-    messages.push({role: 'assistant', content: currentBody.textContent});
-    currentBody.classList.remove('cursor');
-  }
-  currentBody = null; busy = false; streaming = false;
+function endStream(isError) {
+  streaming = false; busy = false;
   btn.textContent = '↵'; btn.classList.remove('stopping');
+  if (!currentBody) return;
+  const raw = currentBody.textContent;
+  currentBody.classList.remove('cursor');
+  if (raw) {
+    currentBody.setAttribute('data-raw', raw);
+    currentBody.innerHTML = renderMarkdown(raw);
+    currentBody.classList.add('rendered');
+    messages.push({role: 'assistant', content: raw});
+  } else {
+    messages.length = _messagesLenBeforeLastUser;
+  }
+  if (isError || !raw) {
+    const msgDiv = currentBody.closest('.msg');
+    const retryBtn = document.createElement('button');
+    retryBtn.className = 'retry-btn';
+    retryBtn.textContent = '↺ retry';
+    retryBtn.addEventListener('click', () => {
+      messages.length = _messagesLenBeforeLastUser;
+      if (msgDiv) msgDiv.remove();
+      sendText(lastUserText);
+    });
+    if (msgDiv) msgDiv.appendChild(retryBtn);
+  }
+  currentBody = null;
 }
 
 // ── Screenshot ────────────────────────────────────────────────────────────────
@@ -392,6 +523,8 @@ function sendText(text) {
   currentBody.classList.add('cursor');
   busy = true; streaming = true;
   btn.textContent = '⏹'; btn.classList.add('stopping');
+  lastUserText = text;
+  _messagesLenBeforeLastUser = messages.length;
   messages.push({role: 'user', content: text});
   if (hasScreenshot) clearScreenshotUI();
   const ctx = messages.length > CTX_WINDOW ? messages.slice(-CTX_WINDOW) : messages;
