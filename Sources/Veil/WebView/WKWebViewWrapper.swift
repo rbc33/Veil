@@ -28,14 +28,15 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
             guard let body = message.body as? [String: Any],
                   let messages = body["messages"] as? [[String: Any]],
                   let model = body["model"] as? String else { return }
-            let img = pendingScreenshot; pendingScreenshot = nil
+            let img = (body["screenshot"] as? String) ?? pendingScreenshot
+            pendingScreenshot = nil
             streamResponse(messages: messages, model: model, image: img)
         case "captureScreen":
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 guard let self = self else { return }
                 if let b64 = captureScreenBase64() {
                     self.pendingScreenshot = b64
-                    DispatchQueue.main.async { self.view.evaluateJavaScript("onScreenshotCaptured()", completionHandler: nil) }
+                    DispatchQueue.main.async { self.view.evaluateJavaScript("onScreenshotCaptured('\(b64)')", completionHandler: nil) }
                 } else {
                     DispatchQueue.main.async { self.view.evaluateJavaScript("onScreenshotError()", completionHandler: nil) }
                 }

@@ -37,6 +37,10 @@ cat > "$APP/Contents/Info.plist" << 'PLIST'
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Veil needs the microphone to transcribe audio with Whisper.</string>
   <key>NSScreenCaptureUsageDescription</key><string>Veil needs screen access to capture context for AI responses.</string>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoads</key><true/>
+  </dict>
 </dict>
 </plist>
 PLIST

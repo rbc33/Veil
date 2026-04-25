@@ -164,6 +164,7 @@ let hasScreenshot = false;
 let messages = [];
 const CTX_WINDOW = 20;
 let lastUserText = '';
+let lastScreenshot = null;
 let _messagesLenBeforeLastUser = 0;
 
 function setSavedModel(m) { window.savedModel = m; }
@@ -462,7 +463,7 @@ function endStream(isError) {
     retryBtn.addEventListener('click', () => {
       messages.length = _messagesLenBeforeLastUser;
       if (msgDiv) msgDiv.remove();
-      sendText(lastUserText);
+      sendText(lastUserText, lastScreenshot);
     });
     if (msgDiv) msgDiv.appendChild(retryBtn);
   }
@@ -500,8 +501,9 @@ function clearScreenshotUI() {
   screenshotIndicator.style.display = 'none';
 }
 
-function onScreenshotCaptured() {
+function onScreenshotCaptured(b64) {
   hasScreenshot = true;
+  lastScreenshot = b64 || null;
   screenshotBtn.innerHTML = SCREENSHOT_ICON;
   screenshotBtn.classList.add('captured');
   screenshotBtn.title = 'Screenshot attached — click to remove';
@@ -515,20 +517,22 @@ function onScreenshotError() {
   screenshotBtn.title = 'Screen capture failed — check System Settings > Privacy > Screen Recording';
 }
 
-function sendText(text) {
+function sendText(text, screenshotB64) {
   if (busy || !text) return;
   modelDropdown.classList.remove('open');
-  addMsg('user').textContent = text + (hasScreenshot ? ' 📎' : '');
+  const img = screenshotB64 || (hasScreenshot ? lastScreenshot : null);
+  addMsg('user').textContent = text + (img ? ' 📎' : '');
   currentBody = addMsg('ai');
   currentBody.classList.add('cursor');
   busy = true; streaming = true;
   btn.textContent = '⏹'; btn.classList.add('stopping');
   lastUserText = text;
+  lastScreenshot = img;
   _messagesLenBeforeLastUser = messages.length;
   messages.push({role: 'user', content: text});
   if (hasScreenshot) clearScreenshotUI();
   const ctx = messages.length > CTX_WINDOW ? messages.slice(-CTX_WINDOW) : messages;
-  window.webkit.messageHandlers.sendMessage.postMessage({messages: ctx, model: model});
+  window.webkit.messageHandlers.sendMessage.postMessage({messages: ctx, model: model, screenshot: img || null});
 }
 
 function send() {
