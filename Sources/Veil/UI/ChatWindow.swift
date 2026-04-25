@@ -7,7 +7,7 @@ class ChatWindow: NSObject, NSWindowDelegate {
 
     override init() {
         let savedStr = UserDefaults.standard.string(forKey: "windowFrame")
-        let defaultFrame = NSRect(x: 0, y: 0, width: 460, height: 620)
+        let defaultFrame = NSRect(x: 0, y: 0, width: 800, height: 620)
         var initialFrame = defaultFrame
         var shouldCenter = true
         if let s = savedStr {

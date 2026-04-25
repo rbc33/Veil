@@ -104,6 +104,12 @@ Default shortcut: **⌘⇧** (customizable in Settings).
 
 Works with any vision-capable model (`llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`, etc.). Screenshot data goes only to your configured backend.
 
+If macOS denied screen capture access:
+
+```bash
+tccutil reset ScreenCapture com.local.veil
+```
+
 ---
 
 ## Usage
