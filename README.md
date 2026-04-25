@@ -1,75 +1,120 @@
-# Veil
+<div align="center">
 
-macOS menu bar AI chat. **Invisible to screen sharing, screen recording, and screenshots.**
+<img src="https://img.shields.io/badge/macOS-13%2B-black?style=flat-square&logo=apple&logoColor=white" />
+<img src="https://img.shields.io/badge/Swift-5.9-orange?style=flat-square&logo=swift&logoColor=white" />
+<img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" />
+<img src="https://img.shields.io/github/stars/rbc33/Veil?style=flat-square&color=yellow" />
 
-No Dock icon. No trace on capture.
+<br><br>
+
+# ⬡ Veil
+
+### macOS AI chat. Invisible to screen sharing.
+
+*Zoom, Teams, Meet, OBS, QuickTime — none of them see it. Only you do.*
+
+<br>
+
+[**Download DMG**](https://github.com/rbc33/Veil/releases) · [**Build from source**](#install) · [**Report bug**](https://github.com/rbc33/Veil/issues)
+
+</div>
 
 ---
 
-## How it works
+## Why Veil?
 
-`NSWindow.sharingType = .none` — a public AppKit API that excludes the window from the display server's capture pipeline before any recording app sees it.
+You're in a work call. You need to ask an AI something. You open ChatGPT — and everyone sees it.
 
-**Invisible in:**
+Veil solves this. It lives in your menu bar, invisible to every screen recorder and screen share tool on macOS. No one sees it but you.
 
-- Zoom, Google Meet, Microsoft Teams screen share
-- QuickTime, OBS, Cmd+Shift+5 screen recording
-- Anything using `CGWindowListCreateImage` or `SCScreenshotManager`
+```swift
+// The entire secret: one native AppKit API
+window.sharingType = .none
+```
 
-Only you see it. On your physical display.
+That's it. A public, documented API that removes the window from macOS's display capture pipeline — before Zoom, OBS, or `CGWindowListCreateImage` ever touches it.
+
+---
+
+## Features
+
+| | |
+|---|---|
+| 🫥 **Invisible by default** | Hidden from Zoom, Teams, Meet, OBS, QuickTime, Cmd+Shift+5 |
+| 🍎 **Menu bar only** | No Dock icon. No trace. Appears as **⬡** |
+| 🤖 **Multi-backend** | Ollama, OpenAI, Claude, OpenRouter, NVIDIA NIM, LM Studio, llama.cpp |
+| 🎙 **Voice input** | On-device transcription via whisper-cpp |
+| 📸 **Screenshot analysis** | You see the screen. Recorders don't see Veil. |
+| 🔒 **Zero telemetry** | No analytics, no cloud, no tracking |
 
 ---
 
 ## Install
 
-**From source:**
+**Option A — DMG (fastest)**
+
+Download [`Veil-v1.0.1.dmg`](https://github.com/rbc33/Veil/releases), drag to Applications, open.
+
+**Option B — Build from source**
 
 ```bash
+# Requirements: macOS 13+, Xcode Command Line Tools
+xcode-select --install
+
 git clone https://github.com/rbc33/Veil.git && cd Veil
 bash build.sh
 open Veil.app
 ```
 
-**From DMG:** open `Veil-v1.0.1.dmg`, drag to Applications.
+The **⬡** icon appears in your menu bar. Click → **Open chat**.
 
-The **⬡** icon appears in the menu bar. Click → **Open chat**.
+---
 
-Requirements: macOS 13+, Xcode Command Line Tools (`xcode-select --install`).
+## How the invisibility works
+
+macOS exposes a window-level API that controls whether a window participates in the display server's capture pipeline:
+
+```swift
+NSWindow.sharingType = .none   // excluded from capture
+NSWindow.sharingType = .readOnly   // default — visible to recorders
+```
+
+Setting `.none` tells the display server to exclude this window from all capture operations **at the compositor level** — before any recording application, screenshot tool, or capture API (`CGWindowListCreateImage`, `SCStreamConfiguration`, etc.) can observe it.
+
+**Result:** The window renders normally on your physical display. It simply does not exist to capture pipelines.
+
+This is a public, documented AppKit API. No hacks. No injection. No overlay tricks.
 
 ---
 
 ## Backends
 
-Open via **⬡ → Settings…** and pick from the Backend dropdown.
+Open **⬡ → Settings…** and pick your backend:
 
-| Backend       | Default URL                                    | Notes                        |
-|---------------|------------------------------------------------|------------------------------|
-| Ollama        | `http://localhost:11434`                       | Local, no key needed         |
-| OpenAI        | `https://api.openai.com/v1`                    | API key required             |
-| Anthropic     | `https://api.anthropic.com/v1`                 | API key required             |
-| OpenRouter    | `https://openrouter.ai/api/v1`                 | API key required             |
-| Azure OpenAI  | *(your endpoint)*                              | API key required             |
-| NVIDIA NIM    | `https://integrate.api.nvidia.com/v1`          | API key required (free tier) |
-| llama.cpp     | `http://localhost:8080/v1`                     | Local, no key needed         |
-| LM Studio     | `http://localhost:1234/v1`                     | Local, no key needed         |
+| Backend | URL | Notes |
+|---|---|---|
+| **Ollama** | `http://localhost:11434` | Local, no key |
+| **OpenAI** | `https://api.openai.com/v1` | API key required |
+| **Anthropic** | `https://api.anthropic.com/v1` | API key required |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | API key required |
+| **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | Free tier available |
+| **LM Studio** | `http://localhost:1234/v1` | Local, no key |
+| **llama.cpp** | `http://localhost:8080/v1` | Local, no key |
+| **Azure OpenAI** | *(your endpoint)* | API key required |
 
-Any OpenAI-compatible server works (vLLM, LiteLLM, etc.) — select **OpenAI** and set the URL.
+Any OpenAI-compatible server works — select **OpenAI** and set the URL.
 
-Selecting a backend auto-fills the URL. **Test** verifies connectivity. Models load automatically.
+### Free models via NVIDIA NIM
 
-### NVIDIA NIM (free)
-
-1. Go to [build.nvidia.com](https://build.nvidia.com) → sign in → click any model → **Get API Key**
+1. Go to [build.nvidia.com](https://build.nvidia.com) → sign in → any model → **Get API Key**
 2. Key starts with `nvapi-`
-3. In Veil: select **NVIDIA NIM**, paste key in **API key**
+3. In Veil: select **NVIDIA NIM**, paste key
 
-Hundreds of models: Llama, Mistral, Gemma, Qwen, DeepSeek, and more. No credit card.
+Hundreds of models (Llama, Mistral, Gemma, Qwen, DeepSeek) — no credit card required.
 
 ---
 
 ## Voice input
-
-Requires whisper-cpp:
 
 ```bash
 brew install whisper-cpp
@@ -77,56 +122,66 @@ curl -L -o /opt/homebrew/share/whisper-cpp/ggml-base.bin \
   https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin
 ```
 
-Press **🎙** or the keyboard shortcut → speak → press again → transcribes and sends. All on-device.
+Press **🎙** or **⌘⌥** → speak → press again → transcribed and sent. Fully on-device.
 
-Default shortcut: **⌘⌥** (customizable in Settings).
-
-| Model    | Size   | Notes           |
-|----------|--------|-----------------|
-| `tiny`   | 75 MB  | Fast            |
-| `base`   | 150 MB | Good balance    |
-| `small`  | 470 MB | Better accuracy |
-| `medium` | 1.5 GB | Best accuracy   |
-
-If macOS denied microphone access:
-
-```bash
-tccutil reset Microphone com.local.veil
-```
+| Model | Size | Quality |
+|---|---|---|
+| `tiny` | 75 MB | Fast |
+| `base` | 150 MB | Balanced ✓ |
+| `small` | 470 MB | Better |
+| `medium` | 1.5 GB | Best |
 
 ---
 
 ## Screenshot analysis
 
-Press **⌘⇧** or the **⌗** button to capture your screen. Veil attaches it to your next message — the model sees your screen.
+**⌘⇧** or **⌗** → captures screen → attaches to next message.
 
-Default shortcut: **⌘⇧** (customizable in Settings).
+The model sees your screen. The screen recorder doesn't see Veil.
 
-Works with any vision-capable model (`llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`, etc.). Screenshot data goes only to your configured backend.
-
-If macOS denied screen capture access:
-
-```bash
-tccutil reset ScreenCapture com.local.veil
-```
+Works with any vision model: `llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`…
 
 ---
 
-## Usage
+## Keyboard shortcuts
 
-| Action | How |
-|--------|-----|
-| Send | **Enter** |
+| Action | Shortcut |
+|---|---|
+| Send message | **Enter** |
 | New line | **Shift+Enter** |
+| Voice input | **⌘⌥** |
+| Screenshot | **⌘⇧** |
 | Stop generation | **⏹** |
-| Switch model | Click model name in header |
-| Voice input | **🎙** or **⌘⌥** |
-| Screenshot | **⌘⇧** or **⌗** → attaches to next message |
-| Close | **×** or **Cmd+W** |
-| Settings | **⬡ → Settings…** |
+| Close | **Cmd+W** |
+
+All shortcuts customizable in Settings.
 
 ---
 
 ## Privacy
 
-No telemetry. No analytics. No cloud. Network calls go only to the backend you configure. Ollama and local servers (llama.cpp, LM Studio) run fully on-device — nothing leaves your machine. Audio transcription runs on-device via Whisper. Screenshot data is sent only to your configured backend.
+- **No telemetry.** No analytics. No crash reporting to any server.
+- **No cloud.** Network calls go only to your configured backend.
+- **Local backends** (Ollama, llama.cpp, LM Studio) run entirely on your machine — nothing leaves it.
+- **Voice** transcription runs on-device via Whisper.
+- **Screenshots** are sent only to your configured backend.
+
+---
+
+## Contributing
+
+PRs welcome. Open an issue first for large changes.
+
+```bash
+git clone https://github.com/rbc33/Veil.git
+cd Veil
+open Package.swift   # Xcode opens automatically
+```
+
+---
+
+<div align="center">
+
+Made with ⬡ — because some things should stay invisible.
+
+</div>
