@@ -25,12 +25,12 @@ Only you see it. On your physical display.
 **From source:**
 
 ```bash
-git clone <repo> && cd Veil
+git clone https://github.com/rbc33/Veil.git && cd Veil
 bash build.sh
 open Veil.app
 ```
 
-**From DMG:** open `Veil-v1.0.0.dmg`, drag to Applications.
+**From DMG:** open `Veil-v1.0.1.dmg`, drag to Applications.
 
 The **⬡** icon appears in the menu bar. Click → **Open chat**.
 
@@ -98,7 +98,9 @@ tccutil reset Microphone com.local.veil
 
 ## Screenshot analysis
 
-Press **⌗** to capture your screen. Veil attaches it to your next message — the model sees your screen.
+Press **⌘⇧** or the **⌗** button to capture your screen. Veil attaches it to your next message — the model sees your screen.
+
+Default shortcut: **⌘⇧** (customizable in Settings).
 
 Works with any vision-capable model (`llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`, etc.). Screenshot data goes only to your configured backend.
 
@@ -113,7 +115,7 @@ Works with any vision-capable model (`llava`, `gpt-4o`, `gemma3`, `claude-opus-4
 | Stop generation | **⏹** |
 | Switch model | Click model name in header |
 | Voice input | **🎙** or **⌘⌥** |
-| Screenshot | **⌗** → attaches to next message |
+| Screenshot | **⌘⇧** or **⌗** → attaches to next message |
 | Close | **×** or **Cmd+W** |
 | Settings | **⬡ → Settings…** |
 

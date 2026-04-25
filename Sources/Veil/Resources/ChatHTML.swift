@@ -334,27 +334,54 @@ micBtn.addEventListener('click', e => { e.preventDefault(); toggleMic(); });
 
 let shortcut = {cmd:true, opt:true, ctrl:false, shift:false, key:''};
 function setShortcut(s) { shortcut = s; }
+let captureShortcut = {cmd:true, opt:true, ctrl:false, shift:false, key:'c'};
+function setCaptureShortcut(s) { captureShortcut = s; }
 
 const MOD_KEYS = new Set(['Meta','Alt','Control','Shift']);
-let _scArmed = false;
+let _scArmed = false, _scCapArmed = false;
+
+function triggerCapture() {
+  if (!hasScreenshot && !screenshotBtn.disabled) {
+    screenshotBtn.innerHTML = '⏳';
+    screenshotBtn.disabled = true;
+    window.webkit.messageHandlers.captureScreen.postMessage({});
+  }
+}
 
 document.addEventListener('keydown', e => {
+  if (captureShortcut.key &&
+      e.metaKey===captureShortcut.cmd && e.altKey===captureShortcut.opt &&
+      e.ctrlKey===captureShortcut.ctrl && e.shiftKey===captureShortcut.shift &&
+      (e.key.toLowerCase()===captureShortcut.key ||
+       e.code.toLowerCase()==='key'+captureShortcut.key)) {
+    e.preventDefault(); _scArmed = false; _scCapArmed = false;
+    triggerCapture(); return;
+  }
   if (shortcut.key) {
     if (e.metaKey===shortcut.cmd && e.altKey===shortcut.opt &&
         e.ctrlKey===shortcut.ctrl && e.shiftKey===shortcut.shift &&
-        e.key.toLowerCase()===shortcut.key) {
+        (e.key.toLowerCase()===shortcut.key ||
+         e.code.toLowerCase()==='key'+shortcut.key)) {
       e.preventDefault(); toggleMic();
     }
     return;
   }
-  const modsMatch = e.metaKey===shortcut.cmd && e.altKey===shortcut.opt &&
-                    e.ctrlKey===shortcut.ctrl && e.shiftKey===shortcut.shift;
-  if (modsMatch && MOD_KEYS.has(e.key)) { _scArmed = true; }
-  else { _scArmed = false; }
+  const micMatch = e.metaKey===shortcut.cmd && e.altKey===shortcut.opt &&
+                   e.ctrlKey===shortcut.ctrl && e.shiftKey===shortcut.shift;
+  const capMatch = e.metaKey===captureShortcut.cmd && e.altKey===captureShortcut.opt &&
+                   e.ctrlKey===captureShortcut.ctrl && e.shiftKey===captureShortcut.shift;
+  if (MOD_KEYS.has(e.key)) {
+    if (!shortcut.key)        _scArmed    = micMatch;
+    if (!captureShortcut.key) _scCapArmed = capMatch;
+  } else {
+    _scArmed = false; _scCapArmed = false;
+  }
 });
 
 document.addEventListener('keyup', e => {
-  if (_scArmed && MOD_KEYS.has(e.key)) { _scArmed = false; toggleMic(); }
+  if (!MOD_KEYS.has(e.key)) return;
+  if (_scArmed)    { _scArmed = false;    toggleMic(); }
+  if (_scCapArmed) { _scCapArmed = false; triggerCapture(); }
 });
 
 btn.addEventListener('click', e => {
@@ -395,7 +422,13 @@ function onTranscription(text) {
   micBtn.classList.remove('recording','transcribing');
   micBtn.textContent = '🎙';
   micBtn.title = 'Record (' + shortcutLabel() + ')';
-  if (text && text.trim()) sendText(text.trim());
+  if (text && text.trim()) {
+    const inp = document.getElementById('inp');
+    inp.value = text.trim();
+    inp.style.height = 'auto';
+    inp.style.height = Math.min(inp.scrollHeight, 72) + 'px';
+    inp.focus();
+  }
 }
 
 function onMicError(msg) {
@@ -509,6 +542,7 @@ function onScreenshotCaptured(b64) {
   screenshotBtn.title = 'Screenshot attached — click to remove';
   screenshotBtn.disabled = false;
   screenshotIndicator.style.display = 'block';
+  document.getElementById('inp').focus();
 }
 
 function onScreenshotError() {

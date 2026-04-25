@@ -4,17 +4,23 @@ class ShortcutRecorder: NSObject {
     let field: NSTextField
     private var recording = false
     private var monitor: Any?
-    private var pending: RecordingShortcut = .current
+    private var pending: RecordingShortcut
+    private let storagePrefix: String
+    private let defaultShortcut: RecordingShortcut
     var onChange: ((RecordingShortcut) -> Void)?
 
-    override init() {
+    init(storagePrefix: String, defaultShortcut: RecordingShortcut) {
+        self.storagePrefix = storagePrefix
+        self.defaultShortcut = defaultShortcut
+        let current = RecordingShortcut.load(prefix: storagePrefix, fallback: defaultShortcut)
+        self.pending = current
         field = NSTextField(frame: NSRect(x: 0, y: 0, width: 110, height: 22))
         super.init()
         field.isEditable = false
         field.isSelectable = false
         field.alignment = .center
         field.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        field.stringValue = RecordingShortcut.current.displayString
+        field.stringValue = current.displayString
         field.toolTip = "Click to record a new shortcut"
         field.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(clicked)))
     }
@@ -24,7 +30,7 @@ class ShortcutRecorder: NSObject {
     }
 
     private func startRecording() {
-        pending = RecordingShortcut.current
+        pending = RecordingShortcut.load(prefix: storagePrefix, fallback: defaultShortcut)
         recording = true
         field.stringValue = "Press shortcut…"
         monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self] e in
@@ -37,7 +43,10 @@ class ShortcutRecorder: NSObject {
         recording = false
         if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
         field.stringValue = pending.displayString
-        if save { RecordingShortcut.current = pending; onChange?(pending) }
+        if save {
+            RecordingShortcut.save(pending, prefix: storagePrefix)
+            onChange?(pending)
+        }
     }
 
     private func handle(_ e: NSEvent) {
@@ -49,7 +58,7 @@ class ShortcutRecorder: NSObject {
         }
         switch e.keyCode {
         case 53: // Escape — cancel
-            pending = RecordingShortcut.current
+            pending = RecordingShortcut.load(prefix: storagePrefix, fallback: defaultShortcut)
             stopRecording(save: false)
         case 36, 76: // Return/Enter — confirm modifier-only
             stopRecording(save: true)

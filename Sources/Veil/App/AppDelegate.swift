@@ -297,15 +297,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         shortcutRow.spacing = 8
         let shortcutLabel = NSTextField(labelWithString: "Shortcut:")
         shortcutLabel.frame.size.width = 70
-        let recorder = ShortcutRecorder()
+        let recorder = ShortcutRecorder(storagePrefix: "shortcut", defaultShortcut: .default)
         recorder.onChange = { [weak self] _ in self?.chatWindow?.webView.sendShortcut() }
-        let shortcutHint = NSTextField(labelWithString: "click to record  ·  ↩ = modifier-only  ·  Esc = cancel")
+        let shortcutHint = NSTextField(labelWithString: "mic  ·  click to record  ·  ↩ = modifier-only  ·  Esc = cancel")
         shortcutHint.font = NSFont.systemFont(ofSize: 10)
         shortcutHint.textColor = .secondaryLabelColor
         shortcutRow.addArrangedSubview(shortcutLabel)
         shortcutRow.addArrangedSubview(recorder.field)
         shortcutRow.addArrangedSubview(shortcutHint)
         objc_setAssociatedObject(stack, "recorder", recorder, .OBJC_ASSOCIATION_RETAIN)
+
+        let captureRow = NSStackView()
+        captureRow.orientation = .horizontal
+        captureRow.spacing = 8
+        let captureLabel = NSTextField(labelWithString: "Capture:")
+        captureLabel.frame.size.width = 70
+        let captureRecorder = ShortcutRecorder(storagePrefix: "captureShortcut", defaultShortcut: .defaultCapture)
+        captureRecorder.onChange = { [weak self] _ in self?.chatWindow?.webView.sendCaptureShortcut() }
+        let captureHint = NSTextField(labelWithString: "screenshot  ·  click to record  ·  Esc = cancel")
+        captureHint.font = NSFont.systemFont(ofSize: 10)
+        captureHint.textColor = .secondaryLabelColor
+        captureRow.addArrangedSubview(captureLabel)
+        captureRow.addArrangedSubview(captureRecorder.field)
+        captureRow.addArrangedSubview(captureHint)
+        objc_setAssociatedObject(stack, "captureRecorder", captureRecorder, .OBJC_ASSOCIATION_RETAIN)
 
         let sysLabel = NSTextField(labelWithString: "System prompt:")
         sysLabel.font = NSFont.systemFont(ofSize: 11)
@@ -340,6 +355,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(testRow)
         stack.addArrangedSubview(modelsRow)
         stack.addArrangedSubview(shortcutRow)
+        stack.addArrangedSubview(captureRow)
         stack.addArrangedSubview(sysRow)
         stack.setCustomSpacing(2, after: sysRow)
 

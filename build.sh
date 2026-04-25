@@ -4,7 +4,7 @@ set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$DIR"
 
-VERSION="1.0.0"
+VERSION="1.0.1"
 APP="Veil.app"
 DMG="Veil-v${VERSION}.dmg"
 
