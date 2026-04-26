@@ -171,6 +171,7 @@ Works with any vision model: `llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`…
 
 | Action | Shortcut |
 |---|---|
+| Show / hide window | **⌘⌥M** |
 | Send message | **Enter** |
 | New line | **Shift+Enter** |
 | Voice input | **⌘⌥** |
@@ -178,7 +179,7 @@ Works with any vision model: `llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`…
 | Stop generation | **⏹** |
 | Close | **Cmd+W** |
 
-All shortcuts customizable in Settings.
+All shortcuts customizable in **⬡ → Settings…**
 
 ---
 

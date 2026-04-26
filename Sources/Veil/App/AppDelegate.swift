@@ -307,6 +307,21 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         shortcutRow.addArrangedSubview(shortcutHint)
         objc_setAssociatedObject(stack, "recorder", recorder, .OBJC_ASSOCIATION_RETAIN)
 
+        let toggleRow = NSStackView()
+        toggleRow.orientation = .horizontal
+        toggleRow.spacing = 8
+        let toggleLabel = NSTextField(labelWithString: "Toggle:")
+        toggleLabel.frame.size.width = 70
+        let toggleRecorder = ShortcutRecorder(storagePrefix: "toggleShortcut", defaultShortcut: .defaultToggle)
+        toggleRecorder.onChange = { [weak self] s in self?.globalHotKey?.register(s) }
+        let toggleHint = NSTextField(labelWithString: "show/hide window  ·  key required  ·  Esc = cancel")
+        toggleHint.font = NSFont.systemFont(ofSize: 10)
+        toggleHint.textColor = .secondaryLabelColor
+        toggleRow.addArrangedSubview(toggleLabel)
+        toggleRow.addArrangedSubview(toggleRecorder.field)
+        toggleRow.addArrangedSubview(toggleHint)
+        objc_setAssociatedObject(stack, "toggleRecorder", toggleRecorder, .OBJC_ASSOCIATION_RETAIN)
+
         let captureRow = NSStackView()
         captureRow.orientation = .horizontal
         captureRow.spacing = 8
@@ -356,6 +371,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         stack.addArrangedSubview(modelsRow)
         stack.addArrangedSubview(shortcutRow)
         stack.addArrangedSubview(captureRow)
+        stack.addArrangedSubview(toggleRow)
         stack.addArrangedSubview(sysRow)
         stack.setCustomSpacing(2, after: sysRow)
 

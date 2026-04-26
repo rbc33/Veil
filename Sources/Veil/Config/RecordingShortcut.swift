@@ -6,6 +6,7 @@ struct RecordingShortcut {
 
     static let `default`        = RecordingShortcut(modifiers: [.command, .option], key: "")
     static let defaultCapture   = RecordingShortcut(modifiers: [.command, .shift], key: "")
+    static let defaultToggle    = RecordingShortcut(modifiers: [.command, .option], key: "m")
 
     static func load(prefix: String, fallback: RecordingShortcut) -> RecordingShortcut {
         let raw = UserDefaults.standard.integer(forKey: "\(prefix)Modifiers")
@@ -29,6 +30,11 @@ struct RecordingShortcut {
     static var capture: RecordingShortcut {
         get { load(prefix: "captureShortcut", fallback: .defaultCapture) }
         set { save(newValue, prefix: "captureShortcut") }
+    }
+
+    static var toggle: RecordingShortcut {
+        get { load(prefix: "toggleShortcut", fallback: .defaultToggle) }
+        set { save(newValue, prefix: "toggleShortcut") }
     }
 
     var displayString: String {
