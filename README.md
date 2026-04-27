@@ -9,9 +9,10 @@
 
 # ⬡ Veil
 
-### macOS AI chat. Invisible to screen sharing.
+### The AI assistant Zoom can't see.
 
-*Zoom, Teams, Meet, OBS, QuickTime — none of them see it. Only you do.*
+*Technical interviews. Live demos. Work calls. Client meetings.*  
+*Ask AI anything — nobody sees it but you.*
 
 <br>
 
@@ -21,18 +22,50 @@
 
 ---
 
-## Why Veil?
+## What is this?
 
-You're in a work call. You need to ask an AI something. You open ChatGPT — and everyone sees it.
+Veil is a macOS menu bar AI client that is **completely invisible to screen capture**.
 
-Veil solves this. It lives in your menu bar, invisible to every screen recorder and screen share tool on macOS. No one sees it but you.
+Zoom, Google Meet, Microsoft Teams, OBS, QuickTime, Cmd+Shift+5 — none of them see it. It only exists on your physical display.
 
 ```swift
-// The entire secret: one native AppKit API
+// The entire secret. One native AppKit API.
 window.sharingType = .none
 ```
 
-That's it. A public, documented API that removes the window from macOS's display capture pipeline — before Zoom, OBS, or `CGWindowListCreateImage` ever touches it.
+No hacks. No injection. A public, documented Apple API that removes the window from the display capture pipeline before any recording tool can touch it.
+
+---
+
+## Use cases
+
+**Technical interviews**  
+LeetCode, HackerRank, take-home assessments. Ask for hints, complexity analysis, edge cases — all while sharing your screen. The interviewer sees your code. They don't see Veil.
+
+**Live coding demos**  
+Presenting to a client or team? Use AI to look up syntax, generate boilerplate, or sanity-check your logic in real time. Nobody notices.
+
+**Work calls & meetings**  
+Prepare answers on the fly. Summarize what was just said. Draft a response before you speak. AI is running silently while you're on camera.
+
+**System design interviews**  
+Ask for architecture patterns, trade-offs, scalability approaches. Get instant structured answers while drawing on the whiteboard.
+
+**Local & private**  
+Pair with Ollama or LM Studio for fully on-device inference. Nothing leaves your machine. No API keys, no cloud, no logs.
+
+---
+
+## Tested invisible in ✅
+
+| Tool | Status |
+|---|---|
+| Zoom | ✅ Invisible |
+| Google Meet (Chrome) | ✅ Invisible |
+| Microsoft Teams | ✅ Invisible |
+| OBS Studio | ✅ Invisible |
+| QuickTime screen recording | ✅ Invisible |
+| macOS Cmd+Shift+5 | ✅ Invisible |
 
 ---
 
@@ -40,11 +73,11 @@ That's it. A public, documented API that removes the window from macOS's display
 
 | | |
 |---|---|
-| 🫥 **Invisible by default** | Hidden from Zoom, Teams, Meet, OBS, QuickTime, Cmd+Shift+5 |
+| 🫥 **Invisible by default** | Hidden from every screen capture tool on macOS |
 | 🍎 **Menu bar only** | No Dock icon. No trace. Appears as **⬡** |
 | 🤖 **Multi-backend** | Ollama, OpenAI, Claude, OpenRouter, NVIDIA NIM, LM Studio, llama.cpp |
 | 🎙 **Voice input** | On-device transcription via whisper-cpp |
-| 📸 **Screenshot analysis** | You see the screen. Recorders don't see Veil. |
+| 📸 **Screenshot analysis** | Capture your screen → attach to message. Model sees it, recorder doesn't. |
 | 🔒 **Zero telemetry** | No analytics, no cloud, no tracking |
 
 ---
@@ -75,15 +108,13 @@ The **⬡** icon appears in your menu bar. Click → **Open chat**.
 macOS exposes a window-level API that controls whether a window participates in the display server's capture pipeline:
 
 ```swift
-NSWindow.sharingType = .none   // excluded from capture
-NSWindow.sharingType = .readOnly   // default — visible to recorders
+NSWindow.sharingType = .none     // excluded from all capture
+NSWindow.sharingType = .readOnly // default — visible to recorders
 ```
 
-Setting `.none` tells the display server to exclude this window from all capture operations **at the compositor level** — before any recording application, screenshot tool, or capture API (`CGWindowListCreateImage`, `SCStreamConfiguration`, etc.) can observe it.
+Setting `.none` tells the macOS compositor to exclude the window from all capture operations before any recording application, screenshot tool, or API (`CGWindowListCreateImage`, `SCStreamConfiguration`, etc.) can observe it.
 
-**Result:** The window renders normally on your physical display. It simply does not exist to capture pipelines.
-
-This is a public, documented AppKit API. No hacks. No injection. No overlay tricks.
+The window renders normally on your physical display. It simply does not exist to capture pipelines.
 
 ---
 
@@ -131,35 +162,11 @@ Press **🎙** or **⌘⌥** → speak → press again → transcribed and sent.
 | `small` | 470 MB | Better |
 | `medium` | 1.5 GB | Best |
 
-If macOS denied microphone access:
-
-```bash
-tccutil reset Microphone com.local.veil
-```
-
-### Internal audio (system sound)
-
-macOS does not expose system audio to apps directly. Use [BlackHole](https://github.com/ExistentialAudio/BlackHole) to route it:
-
-```bash
-brew install blackhole-2ch
-```
-
-1. Open **Audio MIDI Setup** (`/Applications/Utilities/`)
-2. Click **+** → **Create Aggregate Device**
-3. Check both **BlackHole 2ch** and your microphone
-4. Click **+** → **Create Multi-Output Device**
-5. Check both **BlackHole 2ch** and your speakers/headphones
-6. **System Settings → Sound → Output** → select the Multi-Output Device
-7. **System Settings → Sound → Input** → select the Aggregate Device
-
-Veil now records mic + system audio together. Revert output device when done.
-
 ---
 
 ## Screenshot analysis
 
-**⌘⇧** or **⌗** → captures screen → attaches to next message.
+**⌘⇧** → captures screen → attaches to next message.
 
 The model sees your screen. The screen recorder doesn't see Veil.
 
@@ -171,15 +178,13 @@ Works with any vision model: `llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`…
 
 | Action | Shortcut |
 |---|---|
-| Show / hide window | **⌘⌥M** |
 | Send message | **Enter** |
 | New line | **Shift+Enter** |
 | Voice input | **⌘⌥** |
 | Screenshot | **⌘⇧** |
-| Stop generation | **⏹** |
 | Close | **Cmd+W** |
 
-All shortcuts customizable in **⬡ → Settings…**
+All shortcuts customizable in Settings.
 
 ---
 
@@ -190,6 +195,19 @@ All shortcuts customizable in **⬡ → Settings…**
 - **Local backends** (Ollama, llama.cpp, LM Studio) run entirely on your machine — nothing leaves it.
 - **Voice** transcription runs on-device via Whisper.
 - **Screenshots** are sent only to your configured backend.
+
+---
+
+## vs. Cluely / Interview Coder / Natively
+
+| | Veil | Others |
+|---|---|---|
+| Free | ✅ Always | ❌ Subscription |
+| Open source | ✅ MIT | ❌ Closed |
+| Local LLMs | ✅ Ollama, llama.cpp | ❌ Cloud only |
+| No account needed | ✅ | ❌ |
+| macOS native (Swift) | ✅ | ❌ Electron |
+| Privacy | ✅ Zero telemetry | ⚠️ |
 
 ---
 
