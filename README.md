@@ -7,7 +7,7 @@
 
 <br><br>
 
-# ⬡ Veil
+# ⬡ Veil — macOS-native Cluely alternative
 
 ### The AI assistant Zoom can't see.
 
