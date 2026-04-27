@@ -2,17 +2,18 @@
 
 <img src="https://img.shields.io/badge/macOS-13%2B-black?style=flat-square&logo=apple&logoColor=white" />
 <img src="https://img.shields.io/badge/Swift-5.9-orange?style=flat-square&logo=swift&logoColor=white" />
+<img src="https://img.shields.io/badge/No_Electron-✓-green?style=flat-square" />
 <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" />
 <img src="https://img.shields.io/github/stars/rbc33/Veil?style=flat-square&color=yellow" />
 
 <br><br>
 
-# ⬡ Veil — macOS-native Cluely alternative
+# ⬡ Veil
 
-### The AI assistant Zoom can't see.
+### The only native Swift macOS Cluely alternative.
 
-*Technical interviews. Live demos. Work calls. Client meetings.*  
-*Ask AI anything — nobody sees it but you.*
+*No Electron. No subscription. No cloud. Just Swift.*  
+*AI invisible to screen sharing — Zoom, Teams, Meet, OBS.*
 
 <br>
 
@@ -22,9 +23,29 @@
 
 ---
 
-## What is this?
+## Why Veil over Pluely, Natively, or Vysper?
 
-Veil is a macOS menu bar AI client that is **completely invisible to screen capture**.
+Every other Cluely alternative is built on **Electron or Tauri** — that means a bundled Chromium browser, 200–500MB of RAM just to open, and slow startup times.
+
+Veil is written in **native Swift using AppKit**. It starts instantly, uses minimal memory, and feels like a real macOS app — because it is one.
+
+| | Veil | Pluely | Natively | Vysper |
+|---|---|---|---|---|
+| **Tech** | ✅ Native Swift | Tauri/Rust | Electron | Electron |
+| **macOS only** | ✅ Purpose-built | ❌ Cross-platform | ❌ Cross-platform | ❌ Cross-platform |
+| **Ollama / local LLMs** | ✅ | ⚠️ Partial | ✅ | ❌ |
+| **Free** | ✅ Always | ✅ | ✅ Free tier | ✅ |
+| **No subscription** | ✅ | ✅ | ⚠️ Premium tier | ✅ |
+| **Open source** | ✅ MIT | ✅ | ✅ | ✅ |
+| **No telemetry** | ✅ Zero | ⚠️ | ⚠️ Limited | ❓ |
+| **Voice input** | ✅ On-device | ❌ | ✅ | ❌ |
+| **App size** | ✅ ~5MB | ~10MB | ~150MB | ~200MB |
+
+---
+
+## What is Veil?
+
+A macOS menu bar AI client that is **completely invisible to screen capture**.
 
 Zoom, Google Meet, Microsoft Teams, OBS, QuickTime, Cmd+Shift+5 — none of them see it. It only exists on your physical display.
 
@@ -43,16 +64,16 @@ No hacks. No injection. A public, documented Apple API that removes the window f
 LeetCode, HackerRank, take-home assessments. Ask for hints, complexity analysis, edge cases — all while sharing your screen. The interviewer sees your code. They don't see Veil.
 
 **Live coding demos**  
-Presenting to a client or team? Use AI to look up syntax, generate boilerplate, or sanity-check your logic in real time. Nobody notices.
+Presenting to a client or team? Use AI to look up syntax, generate boilerplate, or sanity-check logic in real time. Nobody notices.
 
 **Work calls & meetings**  
-Prepare answers on the fly. Summarize what was just said. Draft a response before you speak. AI is running silently while you're on camera.
+Prepare answers on the fly. Summarize what was just said. Draft a response before you speak.
 
 **System design interviews**  
-Ask for architecture patterns, trade-offs, scalability approaches. Get instant structured answers while drawing on the whiteboard.
+Ask for architecture patterns, trade-offs, scalability approaches instantly.
 
 **Local & private**  
-Pair with Ollama or LM Studio for fully on-device inference. Nothing leaves your machine. No API keys, no cloud, no logs.
+Pair with Ollama or LM Studio for fully on-device inference. Nothing leaves your machine.
 
 ---
 
@@ -79,6 +100,7 @@ Pair with Ollama or LM Studio for fully on-device inference. Nothing leaves your
 | 🎙 **Voice input** | On-device transcription via whisper-cpp |
 | 📸 **Screenshot analysis** | Capture your screen → attach to message. Model sees it, recorder doesn't. |
 | 🔒 **Zero telemetry** | No analytics, no cloud, no tracking |
+| ⚡ **Instant startup** | Native Swift — no Chromium, no Electron overhead |
 
 ---
 
@@ -195,19 +217,6 @@ All shortcuts customizable in Settings.
 - **Local backends** (Ollama, llama.cpp, LM Studio) run entirely on your machine — nothing leaves it.
 - **Voice** transcription runs on-device via Whisper.
 - **Screenshots** are sent only to your configured backend.
-
----
-
-## vs. Cluely / Interview Coder / Natively
-
-| | Veil | Others |
-|---|---|---|
-| Free | ✅ Always | ❌ Subscription |
-| Open source | ✅ MIT | ❌ Closed |
-| Local LLMs | ✅ Ollama, llama.cpp | ❌ Cloud only |
-| No account needed | ✅ | ❌ |
-| macOS native (Swift) | ✅ | ❌ Electron |
-| Privacy | ✅ Zero telemetry | ⚠️ |
 
 ---
 
