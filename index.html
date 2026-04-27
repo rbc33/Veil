@@ -1,836 +1,967 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Veil — The AI Zoom can't see</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Veil — the AI they can't see</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Archivo+Black&family=Instrument+Serif:ital@0;1&display=swap" />
+
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --black: #080808;
-  --white: #f2f0eb;
-  --off: #1a1a1a;
-  --border: #2a2a2a;
-  --accent: #c8f542;
-  --accent2: #a8d420;
-  --muted: #666;
-  --red: #ff3b3b;
-}
-
-html { scroll-behavior: smooth; }
-
-body {
-  background: var(--black);
-  color: var(--white);
-  font-family: 'DM Sans', sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-  overflow-x: hidden;
-  cursor: none;
-}
-
-/* CUSTOM CURSOR */
-.cursor {
-  width: 8px; height: 8px;
-  background: var(--accent);
-  border-radius: 50%;
-  position: fixed;
-  pointer-events: none;
-  z-index: 9999;
-  transition: transform 0.1s;
-  transform: translate(-50%, -50%);
-}
-.cursor-ring {
-  width: 32px; height: 32px;
-  border: 1px solid rgba(200,245,66,0.4);
-  border-radius: 50%;
-  position: fixed;
-  pointer-events: none;
-  z-index: 9998;
-  transition: transform 0.15s ease, width 0.2s, height 0.2s, border-color 0.2s;
-  transform: translate(-50%, -50%);
-}
-body:has(a:hover) .cursor-ring,
-body:has(button:hover) .cursor-ring {
-  width: 48px; height: 48px;
-  border-color: var(--accent);
-}
-
-/* NOISE */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
-  pointer-events: none;
-  z-index: 1000;
-}
-
-/* NAV */
-nav {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1.5rem 3rem;
-  mix-blend-mode: difference;
-}
-
-.nav-logo {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.4rem;
-  letter-spacing: 0.1em;
-  color: var(--white);
-  text-decoration: none;
-}
-
-.nav-links {
-  display: flex;
-  gap: 2.5rem;
-  align-items: center;
-}
-
-nav a {
-  color: var(--white);
-  text-decoration: none;
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  opacity: 0.6;
-  transition: opacity 0.2s;
-}
-nav a:hover { opacity: 1; }
-
-.nav-cta {
-  opacity: 1 !important;
-  background: var(--accent);
-  color: var(--black) !important;
-  padding: 0.5rem 1.25rem;
-  font-weight: 500;
-  transition: background 0.2s !important;
-}
-.nav-cta:hover { background: var(--white) !important; }
-
-/* HERO */
-.hero {
-  min-height: 100vh;
-  display: grid;
-  grid-template-rows: 1fr auto;
-  padding: 0 3rem;
-  padding-top: 8rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.hero-bg-text {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(20vw, 30vw, 40vw);
-  color: transparent;
-  -webkit-text-stroke: 1px rgba(255,255,255,0.04);
-  pointer-events: none;
-  white-space: nowrap;
-  z-index: 0;
-  letter-spacing: -0.02em;
-}
-
-.hero-content {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4rem;
-  align-items: end;
-  padding-bottom: 4rem;
-}
-
-.hero-left h1 {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(5rem, 12vw, 11rem);
-  line-height: 0.9;
-  letter-spacing: -0.01em;
-  margin-bottom: 2rem;
-}
-
-.hero-left h1 em {
-  font-style: normal;
-  color: var(--accent);
-  display: block;
-}
-
-.hero-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--off);
-  border: 1px solid var(--border);
-  padding: 0.4rem 0.8rem;
-  font-family: 'DM Mono', monospace;
-  font-size: 0.7rem;
-  color: var(--accent);
-  letter-spacing: 0.05em;
-  margin-bottom: 1.5rem;
-}
-
-.hero-tag::before {
-  content: '';
-  width: 6px; height: 6px;
-  background: var(--red);
-  border-radius: 50%;
-  animation: blink 1.5s infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--red); }
-  50% { opacity: 0.3; box-shadow: none; }
-}
-
-.hero-right {
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  gap: 2rem;
-  padding-bottom: 0.5rem;
-}
-
-.hero-desc {
-  font-size: 1.1rem;
-  color: rgba(242,240,235,0.6);
-  line-height: 1.7;
-  max-width: 380px;
-}
-
-.hero-desc strong {
-  color: var(--white);
-  font-weight: 500;
-}
-
-.hero-cta-group {
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-}
-
-.btn-primary {
-  background: var(--accent);
-  color: var(--black);
-  font-family: 'DM Sans', sans-serif;
-  font-weight: 500;
-  font-size: 0.85rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 1rem 2rem;
-  text-decoration: none;
-  border: none;
-  cursor: none;
-  transition: background 0.15s, transform 0.1s;
-  display: inline-block;
-}
-.btn-primary:hover {
-  background: var(--white);
-  transform: translateY(-2px);
-}
-
-.btn-ghost {
-  color: var(--white);
-  font-family: 'DM Mono', monospace;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  text-decoration: none;
-  opacity: 0.5;
-  transition: opacity 0.15s;
-  border-bottom: 1px solid rgba(255,255,255,0.2);
-  padding-bottom: 2px;
-}
-.btn-ghost:hover { opacity: 1; }
-
-.hero-stats {
-  display: flex;
-  gap: 2.5rem;
-  padding-top: 2rem;
-  border-top: 1px solid var(--border);
-}
-
-.stat-item {}
-.stat-num {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 2rem;
-  letter-spacing: 0.05em;
-  color: var(--accent);
-  line-height: 1;
-}
-.stat-label {
-  font-size: 0.7rem;
-  color: var(--muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-top: 0.2rem;
-}
-
-/* MARQUEE */
-.marquee-wrap {
-  border-top: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  overflow: hidden;
-  white-space: nowrap;
-  padding: 1rem 0;
-  background: var(--off);
-}
-
-.marquee-inner {
-  display: inline-flex;
-  animation: marquee 20s linear infinite;
-}
-
-.marquee-inner span {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1rem;
-  letter-spacing: 0.15em;
-  color: var(--muted);
-  padding: 0 2rem;
-}
-
-.marquee-inner span.accent { color: var(--accent); }
-
-@keyframes marquee {
-  0% { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-
-/* SECTION BASE */
-section {
-  padding: 7rem 3rem;
-  position: relative;
-}
-
-.section-num {
-  font-family: 'DM Mono', monospace;
-  font-size: 0.7rem;
-  color: var(--muted);
-  letter-spacing: 0.1em;
-  margin-bottom: 1.5rem;
-}
-
-h2 {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(3rem, 6vw, 5.5rem);
-  line-height: 0.95;
-  letter-spacing: -0.01em;
-  margin-bottom: 3rem;
-}
-
-/* HOW IT WORKS */
-.how-section {
-  border-top: 1px solid var(--border);
-}
-
-.how-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0;
-}
-
-.how-left {
-  padding-right: 4rem;
-  border-right: 1px solid var(--border);
-}
-
-.how-right {
-  padding-left: 4rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2.5rem;
-}
-
-.code-block {
-  background: var(--off);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  padding: 2rem;
-  font-family: 'DM Mono', monospace;
-  font-size: 0.875rem;
-  line-height: 1.8;
-  overflow-x: auto;
-}
-
-.code-block .c { color: var(--muted); font-style: italic; }
-.code-block .k { color: #c792ea; }
-.code-block .p { color: #82aaff; }
-.code-block .v { color: var(--accent); }
-.code-block .s { color: #f78c6c; }
-
-.how-step {
-  display: flex;
-  gap: 1.5rem;
-  align-items: flex-start;
-}
-
-.step-num {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 3rem;
-  line-height: 1;
-  color: var(--border);
-  flex-shrink: 0;
-  width: 60px;
-}
-
-.step-content h3 {
-  font-size: 1rem;
-  font-weight: 500;
-  margin-bottom: 0.4rem;
-  color: var(--white);
-}
-
-.step-content p {
-  font-size: 0.875rem;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-/* COMPARISON */
-.compare-section {
-  border-top: 1px solid var(--border);
-  background: var(--off);
-}
-
-.compare-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 1rem;
-}
-
-.compare-table th {
-  font-family: 'DM Mono', monospace;
-  font-size: 0.7rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  text-align: left;
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.compare-table th.highlight {
-  color: var(--accent);
-  background: rgba(200,245,66,0.05);
-}
-
-.compare-table td {
-  padding: 1.1rem 1.5rem;
-  font-size: 0.875rem;
-  border-bottom: 1px solid var(--border);
-  color: rgba(242,240,235,0.7);
-}
-
-.compare-table td.highlight {
-  background: rgba(200,245,66,0.05);
-  color: var(--white);
-  font-weight: 500;
-}
-
-.compare-table tr:last-child td { border-bottom: none; }
-
-.check { color: var(--accent); font-size: 1rem; }
-.cross { color: var(--muted); font-size: 1rem; }
-.warn { color: #f0a500; font-size: 1rem; }
-
-/* FEATURES */
-.features-section {
-  border-top: 1px solid var(--border);
-}
-
-.features-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  border: 1px solid var(--border);
-  margin-top: 1rem;
-}
-
-.feat-item {
-  padding: 2.5rem;
-  border-right: 1px solid var(--border);
-  border-bottom: 1px solid var(--border);
-  transition: background 0.2s;
-}
-.feat-item:hover { background: var(--off); }
-.feat-item:nth-child(3n) { border-right: none; }
-.feat-item:nth-last-child(-n+3) { border-bottom: none; }
-
-.feat-icon {
-  font-size: 1.5rem;
-  margin-bottom: 1.2rem;
-  display: block;
-}
-
-.feat-item h3 {
-  font-size: 0.95rem;
-  font-weight: 500;
-  margin-bottom: 0.5rem;
-  letter-spacing: 0.02em;
-}
-
-.feat-item p {
-  font-size: 0.8rem;
-  color: var(--muted);
-  line-height: 1.6;
-}
-
-/* BACKENDS */
-.backends-section {
-  border-top: 1px solid var(--border);
-}
-
-.backends-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1px;
-  background: var(--border);
-  border: 1px solid var(--border);
-  margin-top: 1rem;
-}
-
-.backend-item {
-  background: var(--black);
-  padding: 1.5rem 2rem;
-  transition: background 0.2s;
-}
-.backend-item:hover { background: var(--off); }
-
-.backend-name {
-  font-family: 'DM Mono', monospace;
-  font-size: 0.9rem;
-  color: var(--white);
-  margin-bottom: 0.3rem;
-}
-
-.backend-type {
-  font-size: 0.7rem;
-  color: var(--muted);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.backend-item.local .backend-name { color: var(--accent); }
-
-/* INSTALL */
-.install-section {
-  border-top: 1px solid var(--border);
-  background: var(--off);
-}
-
-.install-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3rem;
-  margin-top: 2rem;
-}
-
-.install-option h3 {
-  font-family: 'DM Mono', monospace;
-  font-size: 0.75rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 1.2rem;
-  padding-bottom: 0.8rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.install-option h3 span {
-  color: var(--accent);
-  margin-right: 0.5rem;
-}
-
-.terminal {
-  background: var(--black);
-  border: 1px solid var(--border);
-  padding: 1.5rem;
-  font-family: 'DM Mono', monospace;
-  font-size: 0.8rem;
-  line-height: 2;
-}
-
-.terminal .prompt { color: var(--accent); }
-.terminal .cmd { color: var(--white); }
-.terminal .comment { color: var(--muted); font-style: italic; }
-
-.install-dmg {
-  display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-}
-
-.dmg-step {
-  display: flex;
-  gap: 1.2rem;
-  align-items: flex-start;
-}
-
-.dmg-num {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 2rem;
-  line-height: 1;
-  color: var(--accent);
-  flex-shrink: 0;
-}
-
-.dmg-step p {
-  font-size: 0.875rem;
-  color: rgba(242,240,235,0.7);
-  padding-top: 0.3rem;
-  line-height: 1.5;
-}
-
-.dmg-step a {
-  color: var(--accent);
-  text-decoration: none;
-  border-bottom: 1px solid rgba(200,245,66,0.3);
-}
-
-/* CTA FINAL */
-.cta-section {
-  border-top: 1px solid var(--border);
-  text-align: center;
-  padding: 8rem 3rem;
-  position: relative;
-  overflow: hidden;
-}
-
-.cta-section::before {
-  content: 'VEIL';
-  position: absolute;
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 40vw;
-  color: transparent;
-  -webkit-text-stroke: 1px rgba(200,245,66,0.06);
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  letter-spacing: -0.02em;
-}
-
-.cta-section h2 {
-  font-size: clamp(3rem, 7vw, 6rem);
-  margin-bottom: 1.5rem;
-  position: relative;
-}
-
-.cta-section p {
-  color: var(--muted);
-  font-size: 1rem;
-  max-width: 400px;
-  margin: 0 auto 3rem;
-  position: relative;
-}
-
-.cta-section .btn-primary {
-  position: relative;
-  font-size: 0.9rem;
-  padding: 1.2rem 3rem;
-}
-
-/* FOOTER */
-footer {
-  border-top: 1px solid var(--border);
-  padding: 2rem 3rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.footer-logo {
-  font-family: 'Bebas Neue', sans-serif;
-  font-size: 1.1rem;
-  letter-spacing: 0.1em;
-  color: var(--white);
-  opacity: 0.4;
-}
-
-.footer-links {
-  display: flex;
-  gap: 2rem;
-}
-
-footer a {
-  color: var(--muted);
-  text-decoration: none;
-  font-size: 0.75rem;
-  letter-spacing: 0.05em;
-  transition: color 0.2s;
-}
-footer a:hover { color: var(--white); }
-
-.footer-copy {
-  font-size: 0.7rem;
-  color: var(--border);
-  letter-spacing: 0.05em;
-}
-
-/* ANIMATIONS */
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(30px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.hero-tag { animation: fadeUp 0.6s ease both; }
-.hero-left h1 { animation: fadeUp 0.6s 0.1s ease both; }
-.hero-desc { animation: fadeUp 0.6s 0.2s ease both; }
-.hero-cta-group { animation: fadeUp 0.6s 0.3s ease both; }
-.hero-stats { animation: fadeUp 0.6s 0.4s ease both; }
-
-@media (max-width: 900px) {
-  nav { padding: 1.2rem 1.5rem; }
-  .nav-links { gap: 1.5rem; }
-  .hero { padding: 0 1.5rem; padding-top: 6rem; }
-  .hero-content { grid-template-columns: 1fr; gap: 2rem; }
-  .how-grid { grid-template-columns: 1fr; }
-  .how-left { border-right: none; border-bottom: 1px solid var(--border); padding-right: 0; padding-bottom: 3rem; }
-  .how-right { padding-left: 0; padding-top: 3rem; }
-  .features-grid { grid-template-columns: 1fr 1fr; }
-  .backends-grid { grid-template-columns: 1fr 1fr; }
-  .install-grid { grid-template-columns: 1fr; }
-  .compare-table { font-size: 0.8rem; }
-  section { padding: 5rem 1.5rem; }
-  footer { flex-direction: column; gap: 1.5rem; text-align: center; }
-}
+  :root {
+    --bg: #0a0a0a;
+    --bg-2: #111111;
+    --ink: #ededed;
+    --ink-dim: #8a8a8a;
+    --ink-faint: #4a4a4a;
+    --rule: #232323;
+    --rule-2: #2e2e2e;
+    --accent: oklch(0.80 0.14 78);
+    --accent-deep: oklch(0.62 0.13 70);
+    --redact: #000;
+    --grid-opacity: 0.05;
+    --scanline-opacity: 0.06;
+    --display-font: 'Archivo Black', 'Helvetica Neue', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+    overflow-x: hidden;
+  }
+
+  /* Scanlines + grid overlay */
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 200;
+    background:
+      repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 2px,
+        rgba(255,255,255,var(--scanline-opacity)) 2px,
+        rgba(255,255,255,var(--scanline-opacity)) 3px
+      );
+    mix-blend-mode: overlay;
+    opacity: 0.6;
+  }
+  body::after {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 199;
+    background:
+      linear-gradient(rgba(255,255,255,var(--grid-opacity)) 1px, transparent 1px) 0 0 / 64px 64px,
+      linear-gradient(90deg, rgba(255,255,255,var(--grid-opacity)) 1px, transparent 1px) 0 0 / 64px 64px;
+    mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+  }
+
+  ::selection { background: var(--accent); color: #000; }
+
+  a { color: inherit; text-decoration: none; }
+
+  .display {
+    font-family: var(--display-font);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 0.88;
+    text-transform: uppercase;
+  }
+  .serif {
+    font-family: 'Instrument Serif', 'Times New Roman', serif;
+    font-style: italic;
+    letter-spacing: -0.01em;
+  }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-weight: 500;
+  }
+
+  .container {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+  @media (max-width: 720px) {
+    .container { padding: 0 20px; }
+  }
+
+  hr.rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+  /* Topbar */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,10,0.78);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    border-bottom: 1px solid var(--rule);
+  }
+  .topbar-inner {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 500; }
+  .brand .glyph { color: var(--accent); font-size: 16px; }
+  .brand .name { letter-spacing: 0.22em; font-size: 12px; }
+  .nav { display: flex; gap: 28px; font-size: 12px; color: var(--ink-dim); }
+  .nav a { transition: color .15s; }
+  .nav a:hover { color: var(--ink); }
+  .nav .num { color: var(--ink-faint); margin-right: 6px; }
+  .topbar-cta {
+    border: 1px solid var(--rule-2);
+    padding: 8px 14px;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink);
+    transition: background .15s, border-color .15s, color .15s;
+  }
+  .topbar-cta:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  @media (max-width: 720px) { .nav { display: none; } }
+
+  /* HERO */
+  .hero { position: relative; padding: 80px 0 60px; border-bottom: 1px solid var(--rule); }
+  .hero-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--ink-dim);
+    letter-spacing: 0.16em; text-transform: uppercase;
+    margin-bottom: 36px; gap: 16px; flex-wrap: wrap;
+  }
+  .hero-meta .ping { display: inline-flex; align-items: center; gap: 8px; }
+  .hero-meta .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 0 var(--accent);
+    animation: pulse 1.6s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { box-shadow: 0 0 0 0 oklch(0.80 0.14 78 / 0.6); }
+    70%  { box-shadow: 0 0 0 10px oklch(0.80 0.14 78 / 0); }
+    100% { box-shadow: 0 0 0 0 oklch(0.80 0.14 78 / 0); }
+  }
+
+  .headline {
+    font-family: var(--display-font);
+    font-weight: 900;
+    letter-spacing: -0.02em;
+    line-height: 0.88;
+    text-transform: uppercase;
+    font-size: clamp(64px, 11vw, 168px);
+    margin: 0;
+  }
+  .headline .invis {
+    position: relative;
+    color: transparent;
+    -webkit-text-stroke: 1.5px var(--ink);
+  }
+  .headline .invis::after {
+    content: "";
+    position: absolute;
+    left: -4%; right: -4%; top: 38%;
+    height: 14%;
+    background: var(--accent);
+    mix-blend-mode: difference;
+    transform: skew(-8deg);
+  }
+  .headline .accent {
+    color: var(--accent);
+    font-style: italic;
+    font-family: 'Instrument Serif', serif;
+    font-weight: 400;
+    text-transform: lowercase;
+    letter-spacing: -0.02em;
+  }
+
+  .hero-sub {
+    margin-top: 36px;
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 56px;
+    align-items: end;
+  }
+  @media (max-width: 880px) { .hero-sub { grid-template-columns: 1fr; gap: 28px; } }
+  .hero-lead { font-size: 18px; line-height: 1.5; max-width: 56ch; color: var(--ink); }
+  .hero-lead b { color: var(--accent); font-weight: 500; }
+
+  .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    height: 48px; padding: 0 22px;
+    font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase;
+    border: 1px solid var(--rule-2);
+    transition: background .15s, color .15s, border-color .15s, transform .15s;
+    cursor: pointer;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 500; }
+  .btn-primary:hover { background: #fff; border-color: #fff; }
+  .btn-ghost:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .btn .arr { font-size: 14px; }
+
+  .hero-stats {
+    margin-top: 64px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border: 1px solid var(--rule);
+  }
+  .hero-stats .cell {
+    padding: 22px 24px;
+    border-right: 1px solid var(--rule);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .hero-stats .cell:last-child { border-right: 0; }
+  .hero-stats .cell .v {
+    font-family: var(--display-font);
+    font-size: 32px; line-height: 1; letter-spacing: -0.02em;
+  }
+  .hero-stats .cell .k {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim);
+  }
+  @media (max-width: 720px) {
+    .hero-stats { grid-template-columns: repeat(2, 1fr); }
+    .hero-stats .cell:nth-child(2) { border-right: 0; }
+    .hero-stats .cell:nth-child(1), .hero-stats .cell:nth-child(2) { border-bottom: 1px solid var(--rule); }
+  }
+
+  /* DEMO */
+  .demo-wrap {
+    position: relative;
+    margin: 96px 0 0;
+    border: 1px solid var(--rule);
+    background:
+      radial-gradient(800px 400px at 20% 0%, oklch(0.80 0.14 78 / 0.05), transparent 60%),
+      var(--bg-2);
+  }
+  .demo-cap {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rule);
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-dim);
+    flex-wrap: wrap; gap: 10px;
+  }
+  .demo-cap .right { display: flex; gap: 18px; align-items: center; }
+  .demo-cap .live { color: var(--accent); display: inline-flex; align-items: center; gap: 8px; }
+  .demo-cap .live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 1.6s infinite; }
+
+  .menubar {
+    height: 28px;
+    background: rgba(20,20,20,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--rule);
+    display: flex; align-items: center;
+    padding: 0 14px;
+    gap: 18px;
+    font-size: 12px;
+    color: var(--ink);
+    position: relative;
+  }
+  .menubar .menus { display: flex; gap: 16px; color: var(--ink); font-weight: 500; }
+  .menubar .menus span:first-child { font-weight: 700; }
+  .menubar .spacer { flex: 1; }
+  .menubar .icons { display: flex; gap: 14px; align-items: center; color: var(--ink-dim); font-size: 12px; }
+  .menubar .veil-glyph { color: var(--accent); font-size: 14px; position: relative; cursor: pointer; }
+  .menubar .veil-glyph::after {
+    content: ""; position: absolute; inset: -6px;
+    border: 1px dashed var(--accent); opacity: 0; transition: opacity .2s;
+  }
+  .menubar:hover .veil-glyph::after { opacity: 1; }
+  .menubar .clock { font-variant-numeric: tabular-nums; }
+
+  .stage {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: radial-gradient(1200px 600px at 70% 30%, #1a1a1a, #0d0d0d 60%, #050505);
+    overflow: hidden;
+  }
+  .stage::before {
+    content: ""; position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle at 20% 30%, oklch(0.80 0.14 78 / 0.06), transparent 40%),
+      radial-gradient(circle at 80% 70%, oklch(0.62 0.13 70 / 0.05), transparent 50%);
+  }
+
+  .veil-panel {
+    position: absolute;
+    top: 56px; right: 56px;
+    width: 320px;
+    background: rgba(15,15,15,0.92);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--rule-2);
+    box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04) inset;
+    font-size: 12px;
+    z-index: 5;
+  }
+  .veil-panel .vp-head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-dim);
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .veil-panel .vp-head .g { color: var(--accent); }
+  .veil-panel .vp-body { padding: 14px 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .veil-panel .msg { display: flex; gap: 10px; line-height: 1.5; }
+  .veil-panel .msg .who {
+    font-size: 9px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-faint); width: 36px; flex-shrink: 0; padding-top: 2px;
+  }
+  .veil-panel .msg .txt { color: var(--ink); }
+  .veil-panel .msg.ai .who { color: var(--accent); }
+  .veil-panel .vp-input {
+    border-top: 1px solid var(--rule);
+    padding: 10px 12px;
+    color: var(--ink-faint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .veil-panel .vp-input .caret { width: 6px; height: 12px; background: var(--accent); animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  .editor-win {
+    position: absolute;
+    top: 24%; left: 6%;
+    width: 56%;
+    background: #111;
+    border: 1px solid var(--rule-2);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+    font-size: 11px;
+  }
+  .editor-win .titlebar {
+    display: flex; align-items: center; gap: 6px;
+    height: 28px; padding: 0 12px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-dim);
+  }
+  .editor-win .traffic { display: flex; gap: 6px; }
+  .editor-win .traffic span { width: 11px; height: 11px; border-radius: 50%; background: #333; border: 1px solid #222; }
+  .editor-win .filename { font-size: 11px; color: var(--ink-faint); margin-left: 8px; }
+  .editor-win .body { padding: 14px 16px; line-height: 1.7; color: var(--ink-dim); }
+  .editor-win .body .ln { color: var(--ink-faint); display: inline-block; width: 22px; }
+  .editor-win .kw { color: oklch(0.78 0.14 290); }
+  .editor-win .fn { color: oklch(0.80 0.14 78); }
+  .editor-win .str { color: oklch(0.78 0.10 140); }
+  .editor-win .com { color: var(--ink-faint); font-style: italic; }
+
+  .comparison { position: absolute; inset: 0; pointer-events: none; }
+  .comparison .col {
+    position: absolute; top: 0; bottom: 0; width: 50%;
+    border-right: 1px dashed var(--rule-2);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding-top: 14px;
+  }
+  .comparison .col:last-child { left: 50%; border-right: 0; }
+  .comparison .label {
+    display: inline-flex; gap: 10px; align-items: center;
+    background: rgba(0,0,0,0.6);
+    border: 1px solid var(--rule-2);
+    padding: 6px 10px;
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink);
+  }
+  .comparison .label.left { color: var(--accent); }
+  .comparison .label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .comparison .label.right .dot { background: #555; }
+
+  .recorder-mask {
+    position: absolute;
+    top: 0; bottom: 0; left: 50%; right: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(2px);
+    z-index: 6;
+  }
+  .recorder-mask .punch {
+    position: absolute; inset: 0;
+    background: repeating-linear-gradient(45deg, transparent 0 8px, rgba(255,255,255,0.018) 8px 9px);
+  }
+  .ghost-outline {
+    position: absolute;
+    top: 56px; right: 56px;
+    width: 320px; height: 192px;
+    border: 1px dashed var(--ink-faint);
+    z-index: 7;
+    pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .ghost-outline span {
+    font-size: 9px; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ink-faint);
+    background: var(--bg-2);
+    padding: 4px 8px;
+    transform: translateY(60px);
+  }
+
+  .demo-foot {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px;
+    border-top: 1px solid var(--rule);
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .demo-foot .frame-rate { color: var(--ink); }
+
+  /* Marquee */
+  .marquee {
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .marquee-track {
+    display: flex; gap: 48px;
+    padding: 18px 0;
+    white-space: nowrap;
+    animation: scroll 40s linear infinite;
+    font-size: 18px;
+    font-family: var(--display-font);
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+  .marquee-track span { display: inline-flex; align-items: center; gap: 48px; }
+  .marquee-track .sep { color: var(--accent); }
+  @keyframes scroll {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+
+  /* Sections */
+  .sec { padding: 120px 0; border-bottom: 1px solid var(--rule); position: relative; }
+  .sec-head {
+    display: grid; grid-template-columns: 200px 1fr; gap: 40px; margin-bottom: 64px;
+  }
+  @media (max-width: 720px) {
+    .sec { padding: 80px 0; }
+    .sec-head { grid-template-columns: 1fr; gap: 16px; margin-bottom: 40px; }
+  }
+  .sec-num { font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-dim); padding-top: 8px; }
+  .sec-num .slash { color: var(--ink-faint); margin: 0 6px; }
+  .sec-title { font-size: clamp(40px, 7vw, 96px); margin: 0; }
+  .sec-title .accent { color: var(--accent); font-style: italic; font-family: 'Instrument Serif', serif; font-weight: 400; text-transform: lowercase; letter-spacing: -0.02em; }
+
+  /* HOW IT WORKS */
+  .how-grid {
+    display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: start;
+  }
+  @media (max-width: 880px) { .how-grid { grid-template-columns: 1fr; } }
+
+  .code-block {
+    background: var(--bg-2);
+    border: 1px solid var(--rule);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.75;
+    position: relative;
+  }
+  .code-block .cb-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-dim); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+  }
+  .code-block .cb-body { padding: 22px 28px 26px; }
+  .code-block .ln { color: var(--ink-faint); display: inline-block; width: 26px; user-select: none; }
+  .code-block .com { color: var(--ink-dim); }
+  .code-block .kw { color: oklch(0.78 0.14 290); }
+  .code-block .prop { color: oklch(0.86 0.10 200); }
+  .code-block .val { color: var(--accent); }
+  .code-block .high {
+    background: oklch(0.80 0.14 78 / 0.10);
+    border-left: 2px solid var(--accent);
+    padding-left: 4px;
+    margin-left: -6px;
+    display: inline-block;
+  }
+
+  .steps { display: flex; flex-direction: column; }
+  .step {
+    display: grid; grid-template-columns: 56px 1fr;
+    gap: 20px; padding: 24px 0;
+    border-top: 1px solid var(--rule);
+  }
+  .step:last-child { border-bottom: 1px solid var(--rule); }
+  .step .n {
+    font-family: var(--display-font);
+    font-size: 28px;
+    color: var(--ink-faint);
+    line-height: 1;
+    transition: color .2s;
+  }
+  .step:hover .n { color: var(--accent); }
+  .step h3 {
+    margin: 0 0 8px; font-size: 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+  }
+  .step p { margin: 0; color: var(--ink-dim); font-size: 13px; line-height: 1.6; max-width: 56ch; }
+  .step code { color: var(--accent); }
+
+  /* COMPARISON */
+  .compare-wrap { overflow-x: auto; }
+  table.compare { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+  table.compare th, table.compare td {
+    text-align: left; padding: 18px 16px;
+    border-bottom: 1px solid var(--rule); vertical-align: middle;
+  }
+  table.compare thead th {
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-dim); font-weight: 500;
+    border-bottom: 1px solid var(--rule-2);
+    padding-bottom: 14px; padding-top: 14px;
+  }
+  table.compare thead th.veil-col { color: var(--accent); position: relative; }
+  table.compare thead th.veil-col::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+    height: 2px; background: var(--accent);
+  }
+  table.compare tbody td:first-child { color: var(--ink); font-weight: 500; }
+  table.compare td.veil-col { color: var(--ink); background: oklch(0.80 0.14 78 / 0.04); }
+  table.compare .yes { color: var(--accent); }
+  table.compare .no  { color: #6a6a6a; text-decoration: line-through; text-decoration-color: var(--ink-faint); }
+  table.compare .mid { color: var(--ink-dim); }
+
+  /* FEATURES */
+  .features {
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    border: 1px solid var(--rule); border-bottom: 0; border-right: 0;
+  }
+  @media (max-width: 880px) { .features { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .features { grid-template-columns: 1fr; } }
+  .feat {
+    padding: 36px 32px 40px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    position: relative; transition: background .2s;
+  }
+  .feat:hover { background: rgba(255,255,255,0.02); }
+  .feat .num { font-size: 10px; letter-spacing: 0.18em; color: var(--ink-faint); margin-bottom: 32px; }
+  .feat .icon {
+    width: 56px; height: 56px;
+    border: 1px solid var(--rule-2);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 28px; color: var(--accent);
+  }
+  .feat h3 {
+    margin: 0 0 10px; font-size: 18px; line-height: 1.2;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em;
+  }
+  .feat p { margin: 0; color: var(--ink-dim); font-size: 13px; line-height: 1.6; }
+
+  /* BACKENDS */
+  .backends {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    border-left: 1px solid var(--rule); border-top: 1px solid var(--rule);
+  }
+  @media (max-width: 880px) { .backends { grid-template-columns: repeat(2, 1fr); } }
+  .be {
+    padding: 28px 24px;
+    border-right: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    display: flex; flex-direction: column; gap: 14px;
+    min-height: 168px; position: relative;
+    transition: background .2s;
+  }
+  .be:hover { background: rgba(255,255,255,0.02); }
+  .be .be-name { font-size: 18px; font-weight: 700; letter-spacing: 0.02em; }
+  .be .be-meta { margin-top: auto; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-dim); }
+  .be .tag {
+    display: inline-block; align-self: flex-start;
+    border: 1px solid var(--rule-2);
+    padding: 3px 8px;
+    font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+  }
+  .be .tag.local { color: var(--accent); border-color: var(--accent); }
+  .be .tag.cloud { color: var(--ink-dim); }
+
+  /* INSTALL */
+  .install-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--rule); }
+  @media (max-width: 880px) { .install-grid { grid-template-columns: 1fr; } }
+  .ins { padding: 36px 36px 40px; border-right: 1px solid var(--rule); }
+  .ins:last-child { border-right: 0; }
+  @media (max-width: 880px) {
+    .ins { border-right: 0; border-bottom: 1px solid var(--rule); }
+    .ins:last-child { border-bottom: 0; }
+  }
+  .ins .opt { display: flex; align-items: baseline; gap: 10px; margin-bottom: 24px; }
+  .ins .opt .badge {
+    font-family: var(--display-font);
+    font-size: 14px; color: var(--bg);
+    background: var(--accent);
+    width: 24px; height: 24px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .ins .opt h3 {
+    margin: 0; font-size: 18px; font-weight: 700; letter-spacing: 0.02em;
+    text-transform: uppercase; font-family: 'JetBrains Mono', monospace;
+  }
+  .ins ol { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+  .ins ol li {
+    counter-increment: step;
+    display: grid; grid-template-columns: 32px 1fr; gap: 12px;
+    padding: 14px 0;
+    border-top: 1px solid var(--rule);
+    color: var(--ink-dim);
+    font-size: 13px; line-height: 1.6;
+  }
+  .ins ol li::before {
+    content: counter(step, decimal-leading-zero);
+    font-size: 11px; letter-spacing: 0.16em;
+    color: var(--ink-faint); padding-top: 2px;
+  }
+  .ins ol li b { color: var(--ink); font-weight: 500; }
+  .ins ol li code {
+    background: var(--bg-2); border: 1px solid var(--rule);
+    padding: 1px 6px; color: var(--accent); font-size: 12px;
+  }
+
+  .ins .terminal {
+    background: var(--bg-2); border: 1px solid var(--rule);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; line-height: 1.8; color: var(--ink-dim);
+  }
+  .ins .terminal .tt-head {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-bottom: 1px solid var(--rule);
+    color: var(--ink-faint); font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+  }
+  .ins .terminal .tt-head .dots { display: flex; gap: 5px; }
+  .ins .terminal .tt-head .dots span { width: 9px; height: 9px; border-radius: 50%; background: #2a2a2a; }
+  .ins .terminal .tt-body { padding: 16px 18px; }
+  .ins .terminal .prompt { color: var(--accent); }
+  .ins .terminal .com { color: var(--ink-faint); font-style: italic; }
+  .ins .terminal .ok { color: var(--accent); }
+
+  /* FINAL CTA */
+  .final { padding: 140px 0 120px; text-align: center; border-bottom: 1px solid var(--rule); position: relative; }
+  .final::before {
+    content: ""; position: absolute; inset: 0;
+    background: radial-gradient(800px 400px at 50% 30%, oklch(0.80 0.14 78 / 0.06), transparent 70%);
+    pointer-events: none;
+  }
+  .final .display { font-size: clamp(56px, 11vw, 168px); margin: 0 0 32px; position: relative; }
+  .final .display .accent { color: var(--accent); font-style: italic; font-family: 'Instrument Serif', serif; font-weight: 400; text-transform: lowercase; letter-spacing: -0.02em; }
+  .final p { color: var(--ink-dim); font-size: 16px; max-width: 50ch; margin: 0 auto 40px; position: relative; }
+  .final .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; position: relative; }
+
+  /* FOOTER */
+  footer { padding: 60px 0 40px; color: var(--ink-dim); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; }
+  footer .row {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    gap: 40px; flex-wrap: wrap;
+  }
+  footer .col-links { display: flex; gap: 28px; }
+  footer .col-links a:hover { color: var(--ink); }
+  footer .big-glyph {
+    font-family: var(--display-font);
+    font-size: clamp(80px, 18vw, 220px);
+    line-height: 0.9;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--rule-2);
+    margin-top: 40px;
+    letter-spacing: -0.04em;
+    user-select: none;
+  }
+
+  /* TWEAKS PANEL (vanilla) */
+  .tweaks-toggle {
+    position: fixed; right: 18px; bottom: 18px; z-index: 300;
+    width: 44px; height: 44px;
+    background: var(--bg);
+    border: 1px solid var(--rule-2);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all .2s;
+  }
+  .tweaks-toggle:hover { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .tweaks-panel {
+    position: fixed; right: 18px; bottom: 72px; z-index: 300;
+    width: 280px;
+    background: var(--bg);
+    border: 1px solid var(--rule-2);
+    box-shadow: 0 30px 60px rgba(0,0,0,0.5);
+    display: none;
+  }
+  .tweaks-panel.open { display: block; }
+  .tweaks-panel .tp-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--rule);
+    font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--ink-dim);
+  }
+  .tweaks-panel .tp-head .x { cursor: pointer; color: var(--ink-faint); }
+  .tweaks-panel .tp-head .x:hover { color: var(--ink); }
+  .tweaks-panel .tp-section {
+    padding: 14px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .tweaks-panel .tp-section:last-child { border-bottom: 0; }
+  .tweaks-panel .tp-label {
+    font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-faint); margin-bottom: 8px;
+  }
+  .tweaks-panel .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+  .tweaks-panel .swatch {
+    width: 28px; height: 28px;
+    border: 1px solid var(--rule-2);
+    cursor: pointer; transition: transform .12s;
+  }
+  .tweaks-panel .swatch.sel { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tweaks-panel .swatch:hover { transform: scale(1.06); }
+  .tweaks-panel .seg {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    border: 1px solid var(--rule-2);
+  }
+  .tweaks-panel .seg button {
+    background: transparent; border: 0; border-right: 1px solid var(--rule-2);
+    color: var(--ink-dim);
+    padding: 8px 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    cursor: pointer; transition: all .15s;
+  }
+  .tweaks-panel .seg button:last-child { border-right: 0; }
+  .tweaks-panel .seg button.sel { background: var(--accent); color: var(--bg); }
+  .tweaks-panel .seg button:hover:not(.sel) { color: var(--ink); }
+  .tweaks-panel input[type="range"] {
+    width: 100%; -webkit-appearance: none; appearance: none;
+    background: transparent; height: 18px;
+  }
+  .tweaks-panel input[type="range"]::-webkit-slider-runnable-track {
+    height: 2px; background: var(--rule-2);
+  }
+  .tweaks-panel input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 12px; height: 12px; background: var(--accent);
+    margin-top: -5px; cursor: pointer;
+  }
+
 </style>
 </head>
 <body>
 
-<div class="cursor" id="cursor"></div>
-<div class="cursor-ring" id="cursorRing"></div>
-
-<nav>
-  <a href="#" class="nav-logo">⬡ VEIL</a>
-  <div class="nav-links">
-    <a href="#how">How</a>
-    <a href="#compare">vs. Cluely</a>
-    <a href="#install">Install</a>
-    <a href="https://github.com/rbc33/Veil" class="nav-cta">GitHub ↗</a>
-  </div>
-</nav>
-
-<!-- HERO -->
-<div class="hero">
-  <div class="hero-bg-text">VEIL</div>
-  <div class="hero-content">
-    <div class="hero-left">
-      <div class="hero-tag">● SCREEN RECORDING ACTIVE — VEIL NOT DETECTED</div>
-      <h1>THE AI<br>ZOOM<br><em>CAN'T</em><br>SEE.</h1>
-    </div>
-    <div class="hero-right">
-      <p class="hero-desc">
-        A <strong>native Swift</strong> macOS menu bar AI client. Invisible to Zoom, Teams, Meet, OBS, QuickTime. The only Cluely alternative that isn't Electron.
-      </p>
-      <div class="hero-cta-group">
-        <a href="https://github.com/rbc33/Veil/releases" class="btn-primary">Download DMG →</a>
-        <a href="https://github.com/rbc33/Veil" class="btn-ghost">View source ↗</a>
-      </div>
-      <div class="hero-stats">
-        <div class="stat-item">
-          <div class="stat-num">~5MB</div>
-          <div class="stat-label">App size</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-num">0</div>
-          <div class="stat-label">Telemetry</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-num">8+</div>
-          <div class="stat-label">AI Backends</div>
-        </div>
-        <div class="stat-item">
-          <div class="stat-num">MIT</div>
-          <div class="stat-label">License</div>
-        </div>
-      </div>
-    </div>
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="container topbar-inner">
+    <a href="#" class="brand">
+      <span class="glyph">⬡</span>
+      <span class="name">VEIL</span>
+    </a>
+    <nav class="nav">
+      <a href="#how"><span class="num">01</span>HOW</a>
+      <a href="#compare"><span class="num">02</span>VS</a>
+      <a href="#features"><span class="num">03</span>FEATURES</a>
+      <a href="#backends"><span class="num">04</span>BACKENDS</a>
+      <a href="#install"><span class="num">05</span>INSTALL</a>
+    </nav>
+    <a href="#install" class="topbar-cta">Download</a>
   </div>
 </div>
 
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-meta">
+      <span>VEIL / V1.0.1 — MACOS 13+</span>
+      <span class="ping"><span class="dot"></span>SCREEN-CAPTURE PIPELINE: BYPASSED</span>
+    </div>
+
+    <h1 class="headline">
+      THE AI<br />
+      ZOOM <span class="invis">CAN'T</span><br />
+      <span class="accent">see.</span>
+    </h1>
+
+    <div class="hero-sub">
+      <p class="hero-lead">
+        Veil is a <b>native Swift</b> macOS menu-bar AI client that vanishes from every screen recorder on your machine — Zoom, Meet, Teams, OBS, QuickTime. Not a hack. One AppKit flag, applied at the compositor level. ~5 MB. Zero telemetry. Open source.
+      </p>
+      <div class="hero-actions">
+        <a class="btn btn-primary" href="#install"><span>Download DMG</span><span class="arr">→</span></a>
+        <a class="btn btn-ghost" href="#how"><span>How it works</span><span class="arr">↓</span></a>
+      </div>
+    </div>
+
+    <div class="hero-stats">
+      <div class="cell"><div class="v">~5<span style="font-size:18px;color:var(--ink-dim);">MB</span></div><div class="k">App size</div></div>
+      <div class="cell"><div class="v">0</div><div class="k">Telemetry events</div></div>
+      <div class="cell"><div class="v">8+</div><div class="k">AI backends</div></div>
+      <div class="cell"><div class="v">MIT</div><div class="k">License</div></div>
+    </div>
+
+    <!-- DEMO -->
+    <div class="demo-wrap" aria-label="What you see vs what gets recorded">
+      <div class="demo-cap">
+        <span>FIG. 01 / WHAT YOU SEE  ⟷  WHAT GETS RECORDED</span>
+        <span class="right">
+          <span>1920 × 1080</span>
+          <span class="live"><span class="dot"></span>REC 00:42:18</span>
+        </span>
+      </div>
+
+      <div class="menubar">
+        <span></span>
+        <div class="menus">
+          <span>Xcode</span><span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
+        </div>
+        <span class="spacer"></span>
+        <div class="icons">
+          <span class="veil-glyph" title="Veil — only you can see this">⬡</span>
+          <span>◐</span>
+          <span class="clock">Mon 27 Apr  11:42</span>
+        </div>
+      </div>
+
+      <div class="stage">
+        <div class="editor-win">
+          <div class="titlebar">
+            <div class="traffic"><span></span><span></span><span></span></div>
+            <span class="filename">~/veil/Sources/Veil/InvisibleWindow.swift</span>
+          </div>
+          <div class="body">
+            <div><span class="ln">01</span><span class="com">// The entire trick.</span></div>
+            <div><span class="ln">02</span><span class="kw">import</span> AppKit</div>
+            <div><span class="ln">03</span></div>
+            <div><span class="ln">04</span><span class="kw">final class</span> <span class="fn">InvisibleWindow</span>: NSWindow {</div>
+            <div><span class="ln">05</span>&nbsp;&nbsp;<span class="kw">override init</span>(...) {</div>
+            <div><span class="ln">06</span>&nbsp;&nbsp;&nbsp;&nbsp;super.init(...)</div>
+            <div><span class="ln">07</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="com">// removed from compositor</span></div>
+            <div><span class="ln">08</span>&nbsp;&nbsp;&nbsp;&nbsp;sharingType = <span class="str">.none</span></div>
+            <div><span class="ln">09</span>&nbsp;&nbsp;}</div>
+            <div><span class="ln">10</span>}</div>
+          </div>
+        </div>
+
+        <div class="veil-panel">
+          <div class="vp-head">
+            <span><span class="g">⬡</span>&nbsp;&nbsp;VEIL</span>
+            <span>⌘ + SHIFT + V</span>
+          </div>
+          <div class="vp-body">
+            <div class="msg ai">
+              <span class="who">VEIL</span>
+              <span class="txt">The error on line 8 is your <span style="color:var(--accent);">.sharingType</span> needs <code style="color:var(--accent);">NSWindow.SharingType</code>, not the inferred enum.</span>
+            </div>
+            <div class="msg">
+              <span class="who">YOU</span>
+              <span class="txt">also — what's the macOS API that hides from screen capture?</span>
+            </div>
+            <div class="msg ai">
+              <span class="who">VEIL</span>
+              <span class="txt">That same property. It's documented public AppKit. No screen recorder can see this window.</span>
+            </div>
+          </div>
+          <div class="vp-input"><span class="caret"></span><span style="color:var(--ink-faint);">type a message…</span></div>
+        </div>
+
+        <div class="comparison">
+          <div class="col"><span class="label left"><span class="dot"></span>YOUR EYES</span></div>
+          <div class="col"><span class="label right"><span class="dot"></span>RECORDER ▼</span></div>
+        </div>
+
+        <div class="recorder-mask"><div class="punch"></div></div>
+        <div class="ghost-outline"><span>NOT IN STREAM</span></div>
+      </div>
+
+      <div class="demo-foot">
+        <span>SOURCE: NSWindow.sharingType = .none</span>
+        <span class="frame-rate">60.0 FPS</span>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- MARQUEE -->
-<div class="marquee-wrap">
-  <div class="marquee-inner">
-    <span>INVISIBLE TO ZOOM</span><span class="accent">✦</span>
-    <span>NATIVE SWIFT</span><span class="accent">✦</span>
-    <span>NO ELECTRON</span><span class="accent">✦</span>
-    <span>OLLAMA SUPPORT</span><span class="accent">✦</span>
-    <span>FREE FOREVER</span><span class="accent">✦</span>
-    <span>ZERO TELEMETRY</span><span class="accent">✦</span>
-    <span>INVISIBLE TO TEAMS</span><span class="accent">✦</span>
-    <span>OPEN SOURCE</span><span class="accent">✦</span>
-    <span>NO SUBSCRIPTION</span><span class="accent">✦</span>
-    <span>INVISIBLE TO OBS</span><span class="accent">✦</span>
-    <span>NATIVE SWIFT</span><span class="accent">✦</span>
-    <span>NO ELECTRON</span><span class="accent">✦</span>
-    <span>OLLAMA SUPPORT</span><span class="accent">✦</span>
-    <span>FREE FOREVER</span><span class="accent">✦</span>
-    <span>ZERO TELEMETRY</span><span class="accent">✦</span>
-    <span>INVISIBLE TO ZOOM</span><span class="accent">✦</span>
-    <span>NATIVE SWIFT</span><span class="accent">✦</span>
-    <span>NO ELECTRON</span><span class="accent">✦</span>
+<div class="marquee" aria-hidden="true">
+  <div class="marquee-track">
+    <span>INVISIBLE TO ZOOM <span class="sep">✦</span> NATIVE SWIFT <span class="sep">✦</span> NO ELECTRON <span class="sep">✦</span> OLLAMA SUPPORT <span class="sep">✦</span> FREE FOREVER <span class="sep">✦</span> ZERO TELEMETRY <span class="sep">✦</span> OPEN SOURCE <span class="sep">✦</span> ~5 MEGABYTES <span class="sep">✦</span> MIT LICENSE <span class="sep">✦</span></span>
+    <span>INVISIBLE TO ZOOM <span class="sep">✦</span> NATIVE SWIFT <span class="sep">✦</span> NO ELECTRON <span class="sep">✦</span> OLLAMA SUPPORT <span class="sep">✦</span> FREE FOREVER <span class="sep">✦</span> ZERO TELEMETRY <span class="sep">✦</span> OPEN SOURCE <span class="sep">✦</span> ~5 MEGABYTES <span class="sep">✦</span> MIT LICENSE <span class="sep">✦</span></span>
   </div>
 </div>
 
 <!-- HOW IT WORKS -->
-<section class="how-section" id="how">
-  <div class="how-grid">
-    <div class="how-left">
-      <div class="section-num">01 / HOW IT WORKS</div>
-      <h2>ONE API<br>CALL.</h2>
+<section id="how" class="sec">
+  <div class="container">
+    <header class="sec-head">
+      <div class="sec-num">01<span class="slash">/</span>HOW IT WORKS</div>
+      <h2 class="sec-title display">ONE <span class="accent">api</span> CALL.<br/>NO MAGIC.</h2>
+    </header>
+
+    <div class="how-grid">
       <div class="code-block">
-<span class="c">// The entire secret.</span>
-<span class="c">// One native AppKit API.</span>
+        <div class="cb-head">
+          <span>InvisibleWindow.swift</span>
+          <span>SWIFT</span>
+        </div>
+        <div class="cb-body">
+          <div><span class="ln">01</span><span class="com">// The entire secret.</span></div>
+          <div><span class="ln">02</span><span class="com">// Documented public AppKit.</span></div>
+          <div><span class="ln">03</span></div>
+          <div><span class="ln">04</span><span class="kw">import</span> AppKit</div>
+          <div><span class="ln">05</span></div>
+          <div><span class="ln">06</span><span class="kw">let</span> window = NSWindow(</div>
+          <div><span class="ln">07</span>&nbsp;&nbsp;contentRect: chatFrame,</div>
+          <div><span class="ln">08</span>&nbsp;&nbsp;styleMask: [.borderless],</div>
+          <div><span class="ln">09</span>&nbsp;&nbsp;backing: .buffered,</div>
+          <div><span class="ln">10</span>&nbsp;&nbsp;defer: <span class="kw">false</span></div>
+          <div><span class="ln">11</span>)</div>
+          <div><span class="ln">12</span></div>
+          <div><span class="ln">13</span><span class="high">window.<span class="prop">sharingType</span> = <span class="val">.none</span></span></div>
+          <div><span class="ln">14</span></div>
+          <div><span class="ln">15</span><span class="com">// Removed from the macOS</span></div>
+          <div><span class="ln">16</span><span class="com">// display compositor capture</span></div>
+          <div><span class="ln">17</span><span class="com">// pipeline. Before any recorder</span></div>
+          <div><span class="ln">18</span><span class="com">// or CGWindowListCreateImage</span></div>
+          <div><span class="ln">19</span><span class="com">// ever observes a frame.</span></div>
+        </div>
+      </div>
 
-<span class="k">window</span>.<span class="p">sharingType</span> = <span class="v">.none</span>
-
-<span class="c">// Removes the window from</span>
-<span class="c">// macOS display compositor</span>
-<span class="c">// capture pipeline.</span>
-<span class="c">// Before Zoom, OBS, or</span>
-<span class="c">// CGWindowListCreateImage</span>
-<span class="c">// ever sees it.</span>
-      </div>
-    </div>
-    <div class="how-right">
-      <div class="how-step">
-        <div class="step-num">01</div>
-        <div class="step-content">
-          <h3>macOS compositor exclusion</h3>
-          <p>NSWindow.sharingType = .none tells macOS to remove the window from the display server's capture pipeline at the compositor level — before any app can observe it.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="n">01</div>
+          <div>
+            <h3>Compositor exclusion</h3>
+            <p><code>NSWindow.sharingType = .none</code> tells macOS to remove the window from the display server's capture pipeline at the compositor level — before any app can observe a single frame.</p>
+          </div>
         </div>
-      </div>
-      <div class="how-step">
-        <div class="step-num">02</div>
-        <div class="step-content">
-          <h3>Physical display only</h3>
-          <p>The window renders on your monitor normally. It simply does not exist to CGWindowListCreateImage, SCStreamConfiguration, or any screen capture API.</p>
+        <div class="step">
+          <div class="n">02</div>
+          <div>
+            <h3>Physical display only</h3>
+            <p>The window renders on your monitor normally. It simply does not exist to <code>CGWindowListCreateImage</code>, <code>SCStreamConfiguration</code>, or any screen-capture API.</p>
+          </div>
         </div>
-      </div>
-      <div class="how-step">
-        <div class="step-num">03</div>
-        <div class="step-content">
-          <h3>Every recorder is blind</h3>
-          <p>Zoom, Google Meet, Teams, OBS, QuickTime, Cmd+Shift+5. All confirmed invisible. Documented public API — not a hack.</p>
+        <div class="step">
+          <div class="n">03</div>
+          <div>
+            <h3>Every recorder is blind</h3>
+            <p>Confirmed against the major meeting clients, OBS, QuickTime, and the system <code>⌘ + Shift + 5</code> picker. Same flag, same outcome — documented public API, not a kernel hack.</p>
+          </div>
         </div>
-      </div>
-      <div class="how-step">
-        <div class="step-num">04</div>
-        <div class="step-content">
-          <h3>No Dock icon</h3>
-          <p>Lives only as ⬡ in the menu bar. No Mission Control entry, no Alt+Tab presence. Completely discreet.</p>
+        <div class="step">
+          <div class="n">04</div>
+          <div>
+            <h3>No Dock icon</h3>
+            <p>Lives only as ⬡ in the menu bar. No Mission Control entry, no Alt-Tab presence, no notification badges. The app is there for you, and only you.</p>
+          </div>
         </div>
       </div>
     </div>
@@ -838,259 +969,408 @@ footer a:hover { color: var(--white); }
 </section>
 
 <!-- COMPARISON -->
-<section class="compare-section" id="compare">
-  <div class="section-num">02 / VS. CLUELY & ALTERNATIVES</div>
-  <h2>THE ONLY<br>NATIVE ONE.</h2>
+<section id="compare" class="sec">
+  <div class="container">
+    <header class="sec-head">
+      <div class="sec-num">02<span class="slash">/</span>VS. THE FIELD</div>
+      <h2 class="sec-title display">THE ONLY <span class="accent">native</span> ONE.</h2>
+    </header>
 
-  <table class="compare-table">
-    <thead>
-      <tr>
-        <th>Feature</th>
-        <th class="highlight">⬡ Veil</th>
-        <th>Pluely</th>
-        <th>Natively</th>
-        <th>Vysper</th>
-        <th>Cluely</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td>Tech stack</td>
-        <td class="highlight">Native Swift</td>
-        <td>Tauri/WebView</td>
-        <td>Electron</td>
-        <td>Electron</td>
-        <td>Electron</td>
-      </tr>
-      <tr>
-        <td>App size</td>
-        <td class="highlight">~5MB</td>
-        <td>~10MB</td>
-        <td>~150MB</td>
-        <td>~200MB</td>
-        <td>~300MB</td>
-      </tr>
-      <tr>
-        <td>macOS only</td>
-        <td class="highlight"><span class="check">✓</span> Purpose-built</td>
-        <td><span class="cross">✗</span> Cross-platform</td>
-        <td><span class="cross">✗</span> Cross-platform</td>
-        <td><span class="cross">✗</span> Cross-platform</td>
-        <td><span class="cross">✗</span></td>
-      </tr>
-      <tr>
-        <td>Ollama / local LLMs</td>
-        <td class="highlight"><span class="check">✓</span> Full support</td>
-        <td><span class="warn">~</span> Partial</td>
-        <td><span class="check">✓</span></td>
-        <td><span class="cross">✗</span></td>
-        <td><span class="cross">✗</span> Cloud only</td>
-      </tr>
-      <tr>
-        <td>Price</td>
-        <td class="highlight"><span class="check">✓</span> Free forever</td>
-        <td><span class="check">✓</span> Free</td>
-        <td><span class="warn">~</span> Free tier</td>
-        <td><span class="check">✓</span> Free</td>
-        <td><span class="cross">✗</span> $20–$149/mo</td>
-      </tr>
-      <tr>
-        <td>Telemetry</td>
-        <td class="highlight"><span class="check">✓</span> Zero</td>
-        <td><span class="warn">~</span> Unknown</td>
-        <td><span class="warn">~</span> Limited</td>
-        <td><span class="warn">~</span> Unknown</td>
-        <td><span class="cross">✗</span> Data breach 2025</td>
-      </tr>
-      <tr>
-        <td>Voice input</td>
-        <td class="highlight"><span class="check">✓</span> On-device</td>
-        <td><span class="cross">✗</span></td>
-        <td><span class="check">✓</span></td>
-        <td><span class="cross">✗</span></td>
-        <td><span class="check">✓</span></td>
-      </tr>
-      <tr>
-        <td>Open source</td>
-        <td class="highlight"><span class="check">✓</span> MIT</td>
-        <td><span class="check">✓</span></td>
-        <td><span class="check">✓</span></td>
-        <td><span class="check">✓</span></td>
-        <td><span class="cross">✗</span></td>
-      </tr>
-    </tbody>
-  </table>
+    <div class="compare-wrap">
+      <table class="compare">
+        <thead>
+          <tr>
+            <th>Trait</th>
+            <th class="veil-col">⬡ VEIL</th>
+            <th>Tauri-based</th>
+            <th>Electron A</th>
+            <th>Electron B</th>
+            <th>Closed-source SaaS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Tech stack</td>
+            <td class="veil-col yes">Native Swift</td>
+            <td class="mid">Tauri / WebView</td>
+            <td class="mid">Electron</td>
+            <td class="mid">Electron</td>
+            <td class="mid">Electron</td>
+          </tr>
+          <tr>
+            <td>App size</td>
+            <td class="veil-col yes">~5 MB</td>
+            <td class="mid">~10 MB</td>
+            <td class="mid">~150 MB</td>
+            <td class="mid">~200 MB</td>
+            <td class="mid">~300 MB</td>
+          </tr>
+          <tr>
+            <td>macOS-native build</td>
+            <td class="veil-col yes">✓ Purpose-built</td>
+            <td class="no">Cross-platform</td>
+            <td class="no">Cross-platform</td>
+            <td class="no">Cross-platform</td>
+            <td class="no">Cross-platform</td>
+          </tr>
+          <tr>
+            <td>Local LLMs (Ollama)</td>
+            <td class="veil-col yes">✓ First-class</td>
+            <td class="mid">~ Partial</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+            <td class="no">Cloud only</td>
+          </tr>
+          <tr>
+            <td>Price</td>
+            <td class="veil-col yes">Free, forever</td>
+            <td class="yes">Free</td>
+            <td class="mid">Free tier</td>
+            <td class="yes">Free</td>
+            <td class="no">$20–$149 / mo</td>
+          </tr>
+          <tr>
+            <td>Telemetry</td>
+            <td class="veil-col yes">Zero</td>
+            <td class="mid">Unknown</td>
+            <td class="mid">Limited</td>
+            <td class="mid">Unknown</td>
+            <td class="no">Breached, 2025</td>
+          </tr>
+          <tr>
+            <td>On-device voice</td>
+            <td class="veil-col yes">✓ whisper.cpp</td>
+            <td class="no">✗</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+            <td class="mid">~ Cloud</td>
+          </tr>
+          <tr>
+            <td>Open source</td>
+            <td class="veil-col yes">MIT</td>
+            <td class="yes">✓</td>
+            <td class="yes">✓</td>
+            <td class="yes">✓</td>
+            <td class="no">✗</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </section>
 
 <!-- FEATURES -->
-<section class="features-section">
-  <div class="section-num">03 / FEATURES</div>
-  <h2>BUILT FOR<br>MACOS.</h2>
-  <div class="features-grid">
-    <div class="feat-item">
-      <span class="feat-icon">🫥</span>
-      <h3>Invisible by default</h3>
-      <p>Hidden from every screen capture tool on macOS. Zoom, Teams, Meet, OBS, QuickTime, Cmd+Shift+5.</p>
-    </div>
-    <div class="feat-item">
-      <span class="feat-icon">⚡</span>
-      <h3>Native Swift, instant startup</h3>
-      <p>No Electron, no Chromium, no WebView overhead. ~5MB app that opens in milliseconds.</p>
-    </div>
-    <div class="feat-item">
-      <span class="feat-icon">🤖</span>
-      <h3>8+ AI backends</h3>
-      <p>Ollama, OpenAI, Claude, OpenRouter, NVIDIA NIM, LM Studio, llama.cpp. Any OpenAI-compatible endpoint.</p>
-    </div>
-    <div class="feat-item">
-      <span class="feat-icon">🎙</span>
-      <h3>On-device voice input</h3>
-      <p>whisper-cpp transcription runs entirely on your Mac. Your audio never touches a server.</p>
-    </div>
-    <div class="feat-item">
-      <span class="feat-icon">📸</span>
-      <h3>Screenshot analysis</h3>
-      <p>Capture your screen and attach to a message. The AI sees everything. Recorders see nothing.</p>
-    </div>
-    <div class="feat-item">
-      <span class="feat-icon">🔒</span>
-      <h3>Zero telemetry</h3>
-      <p>No analytics, no crash reports, no accounts. Network calls go only to your configured backend.</p>
+<section id="features" class="sec">
+  <div class="container">
+    <header class="sec-head">
+      <div class="sec-num">03<span class="slash">/</span>FEATURES</div>
+      <h2 class="sec-title display">BUILT FOR<br/><span class="accent">macOS.</span></h2>
+    </header>
+
+    <div class="features">
+      <div class="feat">
+        <div class="num">F.01</div>
+        <div class="icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="14" cy="14" r="9" />
+            <path d="M5 14 L23 14" />
+            <path d="M5 9 L23 19" stroke-dasharray="3 3" />
+          </svg>
+        </div>
+        <h3>Invisible by default</h3>
+        <p>Hidden from every screen-capture tool on macOS — meeting clients, OBS, QuickTime, screenshot picker. The recorder draws empty pixels.</p>
+      </div>
+
+      <div class="feat">
+        <div class="num">F.02</div>
+        <div class="icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M14 3 L7 16 H13 L11 25 L21 11 H15 L17 3 Z" stroke-linejoin="round" />
+          </svg>
+        </div>
+        <h3>Native Swift, instant</h3>
+        <p>No Electron, no Chromium, no WebView. ~5 MB binary, sub-100 ms cold start, zero memory bloat. The way Mac apps are supposed to feel.</p>
+      </div>
+
+      <div class="feat">
+        <div class="num">F.03</div>
+        <div class="icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="4" y="6" width="20" height="14" rx="1" />
+            <circle cx="10" cy="13" r="1.6" fill="currentColor" />
+            <circle cx="18" cy="13" r="1.6" fill="currentColor" />
+            <path d="M10 23 H18" />
+          </svg>
+        </div>
+        <h3>Eight-plus backends</h3>
+        <p>Ollama, OpenAI, Claude, OpenRouter, NVIDIA NIM, LM Studio, llama.cpp, Azure — and any OpenAI-compatible endpoint. Bring your own model.</p>
+      </div>
+
+      <div class="feat">
+        <div class="num">F.04</div>
+        <div class="icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="11" y="4" width="6" height="14" rx="3" />
+            <path d="M6 13 v3 a8 8 0 0 0 16 0 v-3" />
+            <path d="M14 24 v-3" />
+          </svg>
+        </div>
+        <h3>On-device voice</h3>
+        <p>whisper.cpp transcribes locally on your Mac. Speak, paste, dictate. Audio never leaves the machine — the server only sees the text you sent.</p>
+      </div>
+
+      <div class="feat">
+        <div class="num">F.05</div>
+        <div class="icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="7" width="22" height="15" rx="1" />
+            <path d="M9 7 L11 4 H17 L19 7" />
+            <circle cx="14" cy="14" r="4" />
+          </svg>
+        </div>
+        <h3>Screenshot analysis</h3>
+        <p>Capture any region, attach to a message, get an answer. The model sees the pixels. Whoever is recording you sees a frozen frame from a second ago.</p>
+      </div>
+
+      <div class="feat">
+        <div class="num">F.06</div>
+        <div class="icon">
+          <svg width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="6" y="12" width="16" height="11" rx="1" />
+            <path d="M9 12 V8 a5 5 0 0 1 10 0 V12" />
+            <circle cx="14" cy="17" r="1.4" fill="currentColor" />
+          </svg>
+        </div>
+        <h3>Zero telemetry</h3>
+        <p>No analytics. No crash reports. No accounts. Network traffic goes to one place: the AI backend you configured. Inspect it on the wire.</p>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- BACKENDS -->
-<section class="backends-section">
-  <div class="section-num">04 / BACKENDS</div>
-  <h2>CONNECT<br>ANYTHING.</h2>
-  <div class="backends-grid">
-    <div class="backend-item local">
-      <div class="backend-name">Ollama</div>
-      <div class="backend-type">Local · No key needed</div>
-    </div>
-    <div class="backend-item local">
-      <div class="backend-name">LM Studio</div>
-      <div class="backend-type">Local · No key needed</div>
-    </div>
-    <div class="backend-item local">
-      <div class="backend-name">llama.cpp</div>
-      <div class="backend-type">Local · No key needed</div>
-    </div>
-    <div class="backend-item">
-      <div class="backend-name">NVIDIA NIM</div>
-      <div class="backend-type">Free tier · No credit card</div>
-    </div>
-    <div class="backend-item">
-      <div class="backend-name">OpenAI</div>
-      <div class="backend-type">Cloud · API key</div>
-    </div>
-    <div class="backend-item">
-      <div class="backend-name">Anthropic</div>
-      <div class="backend-type">Cloud · API key</div>
-    </div>
-    <div class="backend-item">
-      <div class="backend-name">OpenRouter</div>
-      <div class="backend-type">Cloud · 100+ models</div>
-    </div>
-    <div class="backend-item">
-      <div class="backend-name">Azure OpenAI</div>
-      <div class="backend-type">Cloud · Enterprise</div>
+<section id="backends" class="sec">
+  <div class="container">
+    <header class="sec-head">
+      <div class="sec-num">04<span class="slash">/</span>BACKENDS</div>
+      <h2 class="sec-title display">CONNECT<br/><span class="accent">anything.</span></h2>
+    </header>
+
+    <div class="backends">
+      <div class="be"><span class="tag local">Local</span><div class="be-name">Ollama</div><div class="be-meta">No key needed</div></div>
+      <div class="be"><span class="tag local">Local</span><div class="be-name">LM Studio</div><div class="be-meta">No key needed</div></div>
+      <div class="be"><span class="tag local">Local</span><div class="be-name">llama.cpp</div><div class="be-meta">No key needed</div></div>
+      <div class="be"><span class="tag local">Free tier</span><div class="be-name">NVIDIA NIM</div><div class="be-meta">No credit card</div></div>
+      <div class="be"><span class="tag cloud">Cloud</span><div class="be-name">OpenAI</div><div class="be-meta">API key</div></div>
+      <div class="be"><span class="tag cloud">Cloud</span><div class="be-name">Anthropic</div><div class="be-meta">API key</div></div>
+      <div class="be"><span class="tag cloud">Cloud</span><div class="be-name">OpenRouter</div><div class="be-meta">100+ models</div></div>
+      <div class="be"><span class="tag cloud">Cloud</span><div class="be-name">Azure OpenAI</div><div class="be-meta">Enterprise</div></div>
     </div>
   </div>
 </section>
 
 <!-- INSTALL -->
-<section class="install-section" id="install">
-  <div class="section-num">05 / INSTALL</div>
-  <h2>30 SECONDS<br>TO START.</h2>
-  <div class="install-grid">
-    <div class="install-option">
-      <h3><span>A</span> DMG — Recommended</h3>
-      <div class="install-dmg">
-        <div class="dmg-step">
-          <div class="dmg-num">1</div>
-          <p>Download <a href="https://github.com/rbc33/Veil/releases">Veil-v1.0.1.dmg</a> from Releases</p>
+<section id="install" class="sec">
+  <div class="container">
+    <header class="sec-head">
+      <div class="sec-num">05<span class="slash">/</span>INSTALL</div>
+      <h2 class="sec-title display">THIRTY <span class="accent">seconds.</span></h2>
+    </header>
+
+    <div class="install-grid">
+      <div class="ins">
+        <div class="opt">
+          <span class="badge">A</span>
+          <h3>DMG &nbsp;·&nbsp; Recommended</h3>
         </div>
-        <div class="dmg-step">
-          <div class="dmg-num">2</div>
-          <p>Drag Veil.app to Applications folder</p>
-        </div>
-        <div class="dmg-step">
-          <div class="dmg-num">3</div>
-          <p>Open — ⬡ appears in your menu bar. Click → Open chat.</p>
+        <ol>
+          <li><span><b>Download</b> <code>Veil-v1.0.1.dmg</code> from the Releases page.</span></li>
+          <li><span><b>Drag</b> Veil.app into your Applications folder.</span></li>
+          <li><span><b>Open</b> it. The ⬡ glyph appears in your menu bar — click to start a chat.</span></li>
+        </ol>
+        <div style="margin-top:24px;">
+          <a class="btn btn-primary" href="https://github.com/rbc33/Veil/releases"><span>Download v1.0.1</span><span class="arr">→</span></a>
         </div>
       </div>
-    </div>
-    <div class="install-option">
-      <h3><span>B</span> Build from source</h3>
-      <div class="terminal">
-        <span class="comment"># macOS 13+, Xcode CLI Tools</span><br>
-        <span class="prompt">$</span> <span class="cmd">xcode-select --install</span><br><br>
-        <span class="prompt">$</span> <span class="cmd">git clone https://github.com/rbc33/Veil.git</span><br>
-        <span class="prompt">$</span> <span class="cmd">cd Veil && bash build.sh</span><br>
-        <span class="prompt">$</span> <span class="cmd">open Veil.app</span><br><br>
-        <span class="comment"># ⬡ appears in menu bar.</span>
+
+      <div class="ins">
+        <div class="opt">
+          <span class="badge">B</span>
+          <h3>Build from source</h3>
+        </div>
+        <div class="terminal">
+          <div class="tt-head">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <span>~/code — zsh — 80×16</span>
+          </div>
+          <div class="tt-body">
+            <div><span class="com"># macOS 13+, Xcode CLI tools</span></div>
+            <div><span class="prompt">$</span> xcode-select --install</div>
+            <div>&nbsp;</div>
+            <div><span class="prompt">$</span> git clone https://github.com/rbc33/Veil.git</div>
+            <div><span class="prompt">$</span> cd Veil &amp;&amp; bash build.sh</div>
+            <div><span class="prompt">$</span> open Veil.app</div>
+            <div>&nbsp;</div>
+            <div><span class="com"># ⬡ appears in menu bar.</span></div>
+            <div><span class="ok">▌ build complete · 4.8 MB · signed</span></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
 <!-- FINAL CTA -->
-<section class="cta-section">
-  <h2>STOP PAYING<br>FOR CLUELY.</h2>
-  <p>Free. Native. Open source. The AI only you can see.</p>
-  <a href="https://github.com/rbc33/Veil/releases" class="btn-primary">Download Veil — it's free →</a>
+<section class="final">
+  <div class="container">
+    <div class="eyebrow" style="margin-bottom:24px; position: relative;">END OF TRANSMISSION</div>
+    <h2 class="display">STOP PAYING<br/>FOR <span class="accent">noise.</span></h2>
+    <p>Free. Native. Open source. The AI client that's there for you, and only you.</p>
+    <div class="actions">
+      <a class="btn btn-primary" href="https://github.com/rbc33/Veil/releases"><span>Download — it's free</span><span class="arr">→</span></a>
+      <a class="btn btn-ghost" href="https://github.com/rbc33/Veil"><span>View source</span><span class="arr">↗</span></a>
+    </div>
+  </div>
 </section>
 
+<!-- FOOTER -->
 <footer>
-  <div class="footer-logo">⬡ VEIL</div>
-  <div class="footer-links">
-    <a href="https://github.com/rbc33/Veil">GitHub</a>
-    <a href="https://github.com/rbc33/Veil/releases">Releases</a>
-    <a href="https://github.com/rbc33/Veil/issues">Issues</a>
-    <a href="https://rbc33.github.io/Veil">Landing</a>
+  <div class="container">
+    <div class="row">
+      <div>
+        <div class="brand" style="margin-bottom:14px;">
+          <span class="glyph">⬡</span>
+          <span class="name">VEIL</span>
+        </div>
+        <div style="color:var(--ink-faint); font-size:11px;">MIT LICENSE — MADE WITH ⬡</div>
+      </div>
+      <div class="col-links">
+        <a href="https://github.com/rbc33/Veil">GitHub</a>
+        <a href="https://github.com/rbc33/Veil/releases">Releases</a>
+        <a href="https://github.com/rbc33/Veil/issues">Issues</a>
+      </div>
+    </div>
+    <div class="big-glyph">VEIL ⬡</div>
   </div>
-  <div class="footer-copy">MIT LICENSE — MADE WITH ⬡</div>
 </footer>
 
+<!-- TWEAKS PANEL (vanilla) -->
+<div class="tweaks-panel" id="tweaksPanel">
+  <div class="tp-head">
+    <span>TWEAKS</span>
+    <span class="x" id="tweaksClose">✕</span>
+  </div>
+
+  <div class="tp-section">
+    <div class="tp-label">Theme</div>
+    <div class="seg" id="paletteSeg">
+      <button data-palette="obsidian" class="sel">Obsidian</button>
+      <button data-palette="ink">Ink</button>
+      <button data-palette="warm">Warm</button>
+      <button data-palette="paper">Paper</button>
+    </div>
+  </div>
+
+  <div class="tp-section">
+    <div class="tp-label">Accent</div>
+    <div class="swatches" id="accentSwatches">
+      <div class="swatch sel" data-accent="amber"   style="background: oklch(0.80 0.14 78);"></div>
+      <div class="swatch"     data-accent="acid"    style="background: oklch(0.86 0.20 130);"></div>
+      <div class="swatch"     data-accent="cyan"    style="background: oklch(0.78 0.13 220);"></div>
+      <div class="swatch"     data-accent="magenta" style="background: oklch(0.74 0.18 348);"></div>
+      <div class="swatch"     data-accent="ivory"   style="background: oklch(0.96 0.02 90);"></div>
+    </div>
+  </div>
+
+  <div class="tp-section">
+    <div class="tp-label">Display font</div>
+    <div class="seg" id="fontSeg">
+      <button data-font="Archivo Black" class="sel">Archivo</button>
+      <button data-font="Helvetica Neue">Helvetica</button>
+      <button data-font="Instrument Serif">Serif</button>
+    </div>
+  </div>
+
+  <div class="tp-section">
+    <div class="tp-label">Scanline opacity</div>
+    <input type="range" id="scanRange" min="0" max="0.18" step="0.01" value="0.06" />
+  </div>
+
+  <div class="tp-section">
+    <div class="tp-label">Grid opacity</div>
+    <input type="range" id="gridRange" min="0" max="0.12" step="0.005" value="0.05" />
+  </div>
+</div>
+
+<button class="tweaks-toggle" id="tweaksToggle" title="Tweaks">⬡</button>
+
 <script>
-  // Custom cursor
-  const cursor = document.getElementById('cursor');
-  const ring = document.getElementById('cursorRing');
-  let mx = 0, my = 0, rx = 0, ry = 0;
+  // Tweaks: vanilla JS
+  const PALETTES = {
+    obsidian: { bg: "#0a0a0a", bg2: "#111", ink: "#ededed", inkDim: "#8a8a8a", inkFaint: "#4a4a4a", rule: "#232323", rule2: "#2e2e2e" },
+    ink:      { bg: "#06080b", bg2: "#0c1015", ink: "#e6ecf3", inkDim: "#7d8794", inkFaint: "#3e4651", rule: "#1a2129", rule2: "#252e38" },
+    warm:     { bg: "#0c0a07", bg2: "#13100b", ink: "#f1ece2", inkDim: "#9a8f7e", inkFaint: "#5a5141", rule: "#241f17", rule2: "#332c20" },
+    paper:    { bg: "#f3efe8", bg2: "#ebe5da", ink: "#0e0c0a", inkDim: "#5a544c", inkFaint: "#9a948a", rule: "#cfc7b8", rule2: "#bdb4a3" }
+  };
+  const ACCENTS = {
+    amber:   "oklch(0.80 0.14 78)",
+    acid:    "oklch(0.86 0.20 130)",
+    cyan:    "oklch(0.78 0.13 220)",
+    magenta: "oklch(0.74 0.18 348)",
+    ivory:   "oklch(0.96 0.02 90)"
+  };
 
-  document.addEventListener('mousemove', e => {
-    mx = e.clientX; my = e.clientY;
-    cursor.style.left = mx + 'px';
-    cursor.style.top = my + 'px';
-  });
+  const root = document.documentElement;
 
-  function animateRing() {
-    rx += (mx - rx) * 0.12;
-    ry += (my - ry) * 0.12;
-    ring.style.left = rx + 'px';
-    ring.style.top = ry + 'px';
-    requestAnimationFrame(animateRing);
+  function setPalette(name) {
+    const p = PALETTES[name]; if (!p) return;
+    root.style.setProperty('--bg', p.bg);
+    root.style.setProperty('--bg-2', p.bg2);
+    root.style.setProperty('--ink', p.ink);
+    root.style.setProperty('--ink-dim', p.inkDim);
+    root.style.setProperty('--ink-faint', p.inkFaint);
+    root.style.setProperty('--rule', p.rule);
+    root.style.setProperty('--rule-2', p.rule2);
   }
-  animateRing();
+  function setAccent(name) {
+    const a = ACCENTS[name]; if (!a) return;
+    root.style.setProperty('--accent', a);
+  }
+  function setDisplayFont(f) {
+    root.style.setProperty('--display-font', `'${f}', 'Helvetica Neue', sans-serif`);
+  }
 
-  // Fade in sections on scroll
-  const observer = new IntersectionObserver(entries => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        e.target.style.opacity = '1';
-        e.target.style.transform = 'translateY(0)';
-      }
+  function bindSeg(segId, attr, fn) {
+    const seg = document.getElementById(segId);
+    seg.addEventListener('click', (e) => {
+      const btn = e.target.closest('button'); if (!btn) return;
+      seg.querySelectorAll('button').forEach(b => b.classList.remove('sel'));
+      btn.classList.add('sel');
+      fn(btn.dataset[attr]);
     });
-  }, { threshold: 0.1 });
+  }
+  bindSeg('paletteSeg', 'palette', setPalette);
+  bindSeg('fontSeg', 'font', setDisplayFont);
 
-  document.querySelectorAll('section').forEach(s => {
-    s.style.opacity = '0';
-    s.style.transform = 'translateY(20px)';
-    s.style.transition = 'opacity 0.7s ease, transform 0.7s ease';
-    observer.observe(s);
+  document.getElementById('accentSwatches').addEventListener('click', (e) => {
+    const sw = e.target.closest('.swatch'); if (!sw) return;
+    document.querySelectorAll('#accentSwatches .swatch').forEach(s => s.classList.remove('sel'));
+    sw.classList.add('sel');
+    setAccent(sw.dataset.accent);
   });
+
+  document.getElementById('scanRange').addEventListener('input', (e) => {
+    root.style.setProperty('--scanline-opacity', e.target.value);
+  });
+  document.getElementById('gridRange').addEventListener('input', (e) => {
+    root.style.setProperty('--grid-opacity', e.target.value);
+  });
+
+  // toggle visibility
+  const panel = document.getElementById('tweaksPanel');
+  document.getElementById('tweaksToggle').addEventListener('click', () => panel.classList.toggle('open'));
+  document.getElementById('tweaksClose').addEventListener('click', () => panel.classList.remove('open'));
 </script>
+
 </body>
 </html>
