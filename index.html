@@ -3,706 +3,1094 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Veil — AI chat invisible to screen sharing</title>
+<title>Veil — The AI Zoom can't see</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --bg: #0a0a0f;
-    --bg2: #111118;
-    --bg3: #1a1a24;
-    --border: rgba(255,255,255,0.08);
-    --border2: rgba(255,255,255,0.15);
-    --text: #f0eff5;
-    --muted: #7a7a8c;
-    --accent: #a78bfa;
-    --accent2: #7c3aed;
-    --glow: rgba(167,139,250,0.15);
-  }
+:root {
+  --black: #080808;
+  --white: #f2f0eb;
+  --off: #1a1a1a;
+  --border: #2a2a2a;
+  --accent: #c8f542;
+  --accent2: #a8d420;
+  --muted: #666;
+  --red: #ff3b3b;
+}
 
-  html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; }
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    font-size: 16px;
-    line-height: 1.6;
-    overflow-x: hidden;
-  }
+body {
+  background: var(--black);
+  color: var(--white);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  cursor: none;
+}
 
-  /* NOISE TEXTURE */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
-    pointer-events: none;
-    z-index: 0;
-    opacity: 0.4;
-  }
+/* CUSTOM CURSOR */
+.cursor {
+  width: 8px; height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  transition: transform 0.1s;
+  transform: translate(-50%, -50%);
+}
+.cursor-ring {
+  width: 32px; height: 32px;
+  border: 1px solid rgba(200,245,66,0.4);
+  border-radius: 50%;
+  position: fixed;
+  pointer-events: none;
+  z-index: 9998;
+  transition: transform 0.15s ease, width 0.2s, height 0.2s, border-color 0.2s;
+  transform: translate(-50%, -50%);
+}
+body:has(a:hover) .cursor-ring,
+body:has(button:hover) .cursor-ring {
+  width: 48px; height: 48px;
+  border-color: var(--accent);
+}
 
-  /* NAV */
-  nav {
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    z-index: 100;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 1.2rem 3rem;
-    background: rgba(10,10,15,0.85);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-  }
+/* NOISE */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1000;
+}
 
-  .nav-logo {
-    font-size: 1.3rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: var(--text);
-    text-decoration: none;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
+/* NAV */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 3rem;
+  mix-blend-mode: difference;
+}
 
-  .nav-logo span {
-    color: var(--accent);
-    font-size: 1.5rem;
-  }
+.nav-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.1em;
+  color: var(--white);
+  text-decoration: none;
+}
 
-  nav a {
-    color: var(--muted);
-    text-decoration: none;
-    font-size: 0.875rem;
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    transition: color 0.2s;
-  }
-  nav a:hover { color: var(--text); }
+.nav-links {
+  display: flex;
+  gap: 2.5rem;
+  align-items: center;
+}
 
-  .nav-links { display: flex; gap: 2rem; align-items: center; }
+nav a {
+  color: var(--white);
+  text-decoration: none;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+nav a:hover { opacity: 1; }
 
-  .btn-nav {
-    background: var(--accent2);
-    color: white !important;
-    padding: 0.5rem 1.2rem;
-    border-radius: 6px;
-    transition: background 0.2s, transform 0.1s !important;
-  }
-  .btn-nav:hover { background: var(--accent) !important; transform: translateY(-1px); }
+.nav-cta {
+  opacity: 1 !important;
+  background: var(--accent);
+  color: var(--black) !important;
+  padding: 0.5rem 1.25rem;
+  font-weight: 500;
+  transition: background 0.2s !important;
+}
+.nav-cta:hover { background: var(--white) !important; }
 
-  /* HERO */
-  .hero {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    padding: 8rem 2rem 5rem;
-    position: relative;
-  }
+/* HERO */
+.hero {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  padding: 0 3rem;
+  padding-top: 8rem;
+  position: relative;
+  overflow: hidden;
+}
 
-  .hero-glow {
-    position: absolute;
-    width: 600px;
-    height: 600px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(124,58,237,0.2) 0%, transparent 70%);
-    pointer-events: none;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -60%);
-  }
+.hero-bg-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(20vw, 30vw, 40vw);
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(255,255,255,0.04);
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 0;
+  letter-spacing: -0.02em;
+}
 
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    background: rgba(167,139,250,0.1);
-    border: 1px solid rgba(167,139,250,0.3);
-    color: var(--accent);
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 0.35rem 1rem;
-    border-radius: 100px;
-    margin-bottom: 2rem;
-  }
+.hero-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4rem;
+  align-items: end;
+  padding-bottom: 4rem;
+}
 
-  .badge::before {
-    content: '';
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    animation: pulse 2s infinite;
-  }
+.hero-left h1 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(5rem, 12vw, 11rem);
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  margin-bottom: 2rem;
+}
 
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
+.hero-left h1 em {
+  font-style: normal;
+  color: var(--accent);
+  display: block;
+}
 
-  h1 {
-    font-size: clamp(3rem, 8vw, 6.5rem);
-    font-weight: 800;
-    line-height: 0.95;
-    letter-spacing: -0.04em;
-    margin-bottom: 1.5rem;
-    max-width: 900px;
-  }
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: var(--off);
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.8rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  margin-bottom: 1.5rem;
+}
 
-  h1 em {
-    font-style: normal;
-    color: var(--accent);
-    position: relative;
-  }
+.hero-tag::before {
+  content: '';
+  width: 6px; height: 6px;
+  background: var(--red);
+  border-radius: 50%;
+  animation: blink 1.5s infinite;
+}
 
-  .hero-sub {
-    font-size: 1.25rem;
-    color: var(--muted);
-    max-width: 540px;
-    margin-bottom: 3rem;
-    font-weight: 400;
-    line-height: 1.7;
-  }
+@keyframes blink {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--red); }
+  50% { opacity: 0.3; box-shadow: none; }
+}
 
-  .hero-cta {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: center;
-    margin-bottom: 4rem;
-  }
+.hero-right {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2rem;
+  padding-bottom: 0.5rem;
+}
 
-  .btn-primary {
-    background: var(--accent);
-    color: #0a0a0f;
-    font-family: 'Syne', sans-serif;
-    font-weight: 700;
-    font-size: 0.95rem;
-    letter-spacing: 0.02em;
-    padding: 0.9rem 2rem;
-    border-radius: 8px;
-    text-decoration: none;
-    border: none;
-    cursor: pointer;
-    transition: transform 0.15s, box-shadow 0.15s;
-    box-shadow: 0 0 30px rgba(167,139,250,0.35);
-  }
-  .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 0 40px rgba(167,139,250,0.5);
-  }
+.hero-desc {
+  font-size: 1.1rem;
+  color: rgba(242,240,235,0.6);
+  line-height: 1.7;
+  max-width: 380px;
+}
 
-  .btn-ghost {
-    background: transparent;
-    color: var(--text);
-    font-family: 'Syne', sans-serif;
-    font-weight: 600;
-    font-size: 0.95rem;
-    padding: 0.9rem 2rem;
-    border-radius: 8px;
-    border: 1px solid var(--border2);
-    text-decoration: none;
-    cursor: pointer;
-    transition: border-color 0.15s, background 0.15s;
-  }
-  .btn-ghost:hover {
-    border-color: var(--accent);
-    background: rgba(167,139,250,0.05);
-  }
+.hero-desc strong {
+  color: var(--white);
+  font-weight: 500;
+}
 
-  /* CODE BLOCK */
-  .hero-code {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.2rem 1.8rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.875rem;
-    color: #c4b5fd;
-    position: relative;
-    max-width: 500px;
-    text-align: left;
-  }
+.hero-cta-group {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
 
-  .hero-code .comment { color: var(--muted); }
-  .hero-code .keyword { color: #f9a8d4; }
-  .hero-code .property { color: #6ee7b7; }
-  .hero-code .value { color: var(--accent); }
+.btn-primary {
+  background: var(--accent);
+  color: var(--black);
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 0.85rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 1rem 2rem;
+  text-decoration: none;
+  border: none;
+  cursor: none;
+  transition: background 0.15s, transform 0.1s;
+  display: inline-block;
+}
+.btn-primary:hover {
+  background: var(--white);
+  transform: translateY(-2px);
+}
 
-  /* INVISIBLE DEMO */
-  .demo-bar {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 2.5rem;
-    background: var(--bg3);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 1.5rem 2rem;
-    align-items: center;
-    max-width: 600px;
-    width: 100%;
-  }
+.btn-ghost {
+  color: var(--white);
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+  padding-bottom: 2px;
+}
+.btn-ghost:hover { opacity: 1; }
 
-  .recorder-dot {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background: #ef4444;
-    animation: blink 1.5s infinite;
-  }
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.3; }
-  }
+.hero-stats {
+  display: flex;
+  gap: 2.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border);
+}
 
-  .demo-label {
-    font-size: 0.8rem;
-    color: var(--muted);
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-  }
+.stat-item {}
+.stat-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+  line-height: 1;
+}
+.stat-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-top: 0.2rem;
+}
 
-  .invisible-badge {
-    margin-left: auto;
-    background: rgba(34,197,94,0.1);
-    border: 1px solid rgba(34,197,94,0.3);
-    color: #4ade80;
-    font-size: 0.7rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    padding: 0.2rem 0.7rem;
-    border-radius: 100px;
-  }
+/* MARQUEE */
+.marquee-wrap {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 1rem 0;
+  background: var(--off);
+}
 
-  /* SECTION */
-  section {
-    padding: 6rem 2rem;
-    max-width: 1100px;
-    margin: 0 auto;
-    position: relative;
-  }
+.marquee-inner {
+  display: inline-flex;
+  animation: marquee 20s linear infinite;
+}
 
-  .section-label {
-    font-size: 0.75rem;
-    font-weight: 700;
-    letter-spacing: 0.15em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 1rem;
-  }
+.marquee-inner span {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1rem;
+  letter-spacing: 0.15em;
+  color: var(--muted);
+  padding: 0 2rem;
+}
 
-  h2 {
-    font-size: clamp(2rem, 4vw, 3rem);
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    line-height: 1.1;
-    margin-bottom: 1.5rem;
-  }
+.marquee-inner span.accent { color: var(--accent); }
 
-  /* HOW IT WORKS */
-  .how-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-    margin-top: 3rem;
-  }
+@keyframes marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
 
-  .how-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 2rem;
-    transition: border-color 0.2s;
-  }
-  .how-card:hover { border-color: var(--border2); }
+/* SECTION BASE */
+section {
+  padding: 7rem 3rem;
+  position: relative;
+}
 
-  .how-num {
-    font-size: 3rem;
-    font-weight: 800;
-    color: rgba(167,139,250,0.2);
-    line-height: 1;
-    margin-bottom: 1rem;
-    font-variant-numeric: tabular-nums;
-  }
+.section-num {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  margin-bottom: 1.5rem;
+}
 
-  .how-card h3 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-  }
+h2 {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: clamp(3rem, 6vw, 5.5rem);
+  line-height: 0.95;
+  letter-spacing: -0.01em;
+  margin-bottom: 3rem;
+}
 
-  .how-card p {
-    font-size: 0.9rem;
-    color: var(--muted);
-    line-height: 1.7;
-  }
+/* HOW IT WORKS */
+.how-section {
+  border-top: 1px solid var(--border);
+}
 
-  /* FEATURES GRID */
-  .features-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 1.5rem;
-    margin-top: 3rem;
-  }
+.how-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
 
-  .feat-card {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 1.75rem;
-    transition: border-color 0.2s, transform 0.2s;
-  }
-  .feat-card:hover {
-    border-color: rgba(167,139,250,0.3);
-    transform: translateY(-3px);
-  }
+.how-left {
+  padding-right: 4rem;
+  border-right: 1px solid var(--border);
+}
 
-  .feat-icon {
-    font-size: 1.5rem;
-    margin-bottom: 1rem;
-    display: block;
-  }
+.how-right {
+  padding-left: 4rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2.5rem;
+}
 
-  .feat-card h3 {
-    font-size: 1rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-  }
+.code-block {
+  background: var(--off);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  padding: 2rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.875rem;
+  line-height: 1.8;
+  overflow-x: auto;
+}
 
-  .feat-card p {
-    font-size: 0.875rem;
-    color: var(--muted);
-    line-height: 1.6;
-  }
+.code-block .c { color: var(--muted); font-style: italic; }
+.code-block .k { color: #c792ea; }
+.code-block .p { color: #82aaff; }
+.code-block .v { color: var(--accent); }
+.code-block .s { color: #f78c6c; }
 
-  /* BACKENDS */
-  .backends-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1rem;
-    margin-top: 3rem;
-  }
+.how-step {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
 
-  .backend-pill {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
-    font-size: 0.875rem;
-    font-weight: 600;
-    transition: border-color 0.2s;
-  }
-  .backend-pill:hover { border-color: var(--border2); }
+.step-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 3rem;
+  line-height: 1;
+  color: var(--border);
+  flex-shrink: 0;
+  width: 60px;
+}
 
-  .backend-pill small {
-    display: block;
-    color: var(--muted);
-    font-size: 0.75rem;
-    font-weight: 400;
-    margin-top: 0.2rem;
-  }
+.step-content h3 {
+  font-size: 1rem;
+  font-weight: 500;
+  margin-bottom: 0.4rem;
+  color: var(--white);
+}
 
-  /* INSTALL */
-  .install-block {
-    background: var(--bg2);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 2.5rem;
-    margin-top: 3rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.875rem;
-    line-height: 2;
-  }
+.step-content p {
+  font-size: 0.875rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
 
-  .install-block .prompt { color: var(--accent); }
-  .install-block .cmd { color: var(--text); }
-  .install-block .comment2 { color: var(--muted); }
+/* COMPARISON */
+.compare-section {
+  border-top: 1px solid var(--border);
+  background: var(--off);
+}
 
-  /* PRIVACY */
-  .privacy-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 1.5rem;
-    margin-top: 3rem;
-  }
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
 
-  .privacy-item {
-    display: flex;
-    gap: 1rem;
-    align-items: flex-start;
-  }
+.compare-table th {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
 
-  .privacy-check {
-    width: 24px; height: 24px;
-    background: rgba(74,222,128,0.1);
-    border: 1px solid rgba(74,222,128,0.3);
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    color: #4ade80;
-    font-size: 0.75rem;
-    margin-top: 0.1rem;
-  }
+.compare-table th.highlight {
+  color: var(--accent);
+  background: rgba(200,245,66,0.05);
+}
 
-  .privacy-item h4 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.25rem; }
-  .privacy-item p { font-size: 0.85rem; color: var(--muted); }
+.compare-table td {
+  padding: 1.1rem 1.5rem;
+  font-size: 0.875rem;
+  border-bottom: 1px solid var(--border);
+  color: rgba(242,240,235,0.7);
+}
 
-  /* FOOTER */
-  footer {
-    border-top: 1px solid var(--border);
-    padding: 3rem 2rem;
-    text-align: center;
-    color: var(--muted);
-    font-size: 0.875rem;
-  }
+.compare-table td.highlight {
+  background: rgba(200,245,66,0.05);
+  color: var(--white);
+  font-weight: 500;
+}
 
-  footer a { color: var(--accent); text-decoration: none; }
-  footer a:hover { text-decoration: underline; }
+.compare-table tr:last-child td { border-bottom: none; }
 
-  .footer-inner {
-    max-width: 1100px;
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
+.check { color: var(--accent); font-size: 1rem; }
+.cross { color: var(--muted); font-size: 1rem; }
+.warn { color: #f0a500; font-size: 1rem; }
 
-  /* DIVIDER */
-  .divider {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 0;
-  }
+/* FEATURES */
+.features-section {
+  border-top: 1px solid var(--border);
+}
 
-  @media (max-width: 768px) {
-    nav { padding: 1rem 1.5rem; }
-    .nav-links { gap: 1rem; }
-    .how-grid, .features-grid, .backends-grid, .privacy-grid { grid-template-columns: 1fr; }
-    .features-grid { grid-template-columns: 1fr 1fr; }
-    .footer-inner { flex-direction: column; gap: 1rem; }
-  }
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border: 1px solid var(--border);
+  margin-top: 1rem;
+}
+
+.feat-item {
+  padding: 2.5rem;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.2s;
+}
+.feat-item:hover { background: var(--off); }
+.feat-item:nth-child(3n) { border-right: none; }
+.feat-item:nth-last-child(-n+3) { border-bottom: none; }
+
+.feat-icon {
+  font-size: 1.5rem;
+  margin-bottom: 1.2rem;
+  display: block;
+}
+
+.feat-item h3 {
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.02em;
+}
+
+.feat-item p {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+/* BACKENDS */
+.backends-section {
+  border-top: 1px solid var(--border);
+}
+
+.backends-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  margin-top: 1rem;
+}
+
+.backend-item {
+  background: var(--black);
+  padding: 1.5rem 2rem;
+  transition: background 0.2s;
+}
+.backend-item:hover { background: var(--off); }
+
+.backend-name {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.9rem;
+  color: var(--white);
+  margin-bottom: 0.3rem;
+}
+
+.backend-type {
+  font-size: 0.7rem;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.backend-item.local .backend-name { color: var(--accent); }
+
+/* INSTALL */
+.install-section {
+  border-top: 1px solid var(--border);
+  background: var(--off);
+}
+
+.install-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3rem;
+  margin-top: 2rem;
+}
+
+.install-option h3 {
+  font-family: 'DM Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1.2rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.install-option h3 span {
+  color: var(--accent);
+  margin-right: 0.5rem;
+}
+
+.terminal {
+  background: var(--black);
+  border: 1px solid var(--border);
+  padding: 1.5rem;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 2;
+}
+
+.terminal .prompt { color: var(--accent); }
+.terminal .cmd { color: var(--white); }
+.terminal .comment { color: var(--muted); font-style: italic; }
+
+.install-dmg {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.dmg-step {
+  display: flex;
+  gap: 1.2rem;
+  align-items: flex-start;
+}
+
+.dmg-num {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.dmg-step p {
+  font-size: 0.875rem;
+  color: rgba(242,240,235,0.7);
+  padding-top: 0.3rem;
+  line-height: 1.5;
+}
+
+.dmg-step a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid rgba(200,245,66,0.3);
+}
+
+/* CTA FINAL */
+.cta-section {
+  border-top: 1px solid var(--border);
+  text-align: center;
+  padding: 8rem 3rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.cta-section::before {
+  content: 'VEIL';
+  position: absolute;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 40vw;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(200,245,66,0.06);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  letter-spacing: -0.02em;
+}
+
+.cta-section h2 {
+  font-size: clamp(3rem, 7vw, 6rem);
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.cta-section p {
+  color: var(--muted);
+  font-size: 1rem;
+  max-width: 400px;
+  margin: 0 auto 3rem;
+  position: relative;
+}
+
+.cta-section .btn-primary {
+  position: relative;
+  font-size: 0.9rem;
+  padding: 1.2rem 3rem;
+}
+
+/* FOOTER */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem 3rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.footer-logo {
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+  color: var(--white);
+  opacity: 0.4;
+}
+
+.footer-links {
+  display: flex;
+  gap: 2rem;
+}
+
+footer a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
+  transition: color 0.2s;
+}
+footer a:hover { color: var(--white); }
+
+.footer-copy {
+  font-size: 0.7rem;
+  color: var(--border);
+  letter-spacing: 0.05em;
+}
+
+/* ANIMATIONS */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-tag { animation: fadeUp 0.6s ease both; }
+.hero-left h1 { animation: fadeUp 0.6s 0.1s ease both; }
+.hero-desc { animation: fadeUp 0.6s 0.2s ease both; }
+.hero-cta-group { animation: fadeUp 0.6s 0.3s ease both; }
+.hero-stats { animation: fadeUp 0.6s 0.4s ease both; }
+
+@media (max-width: 900px) {
+  nav { padding: 1.2rem 1.5rem; }
+  .nav-links { gap: 1.5rem; }
+  .hero { padding: 0 1.5rem; padding-top: 6rem; }
+  .hero-content { grid-template-columns: 1fr; gap: 2rem; }
+  .how-grid { grid-template-columns: 1fr; }
+  .how-left { border-right: none; border-bottom: 1px solid var(--border); padding-right: 0; padding-bottom: 3rem; }
+  .how-right { padding-left: 0; padding-top: 3rem; }
+  .features-grid { grid-template-columns: 1fr 1fr; }
+  .backends-grid { grid-template-columns: 1fr 1fr; }
+  .install-grid { grid-template-columns: 1fr; }
+  .compare-table { font-size: 0.8rem; }
+  section { padding: 5rem 1.5rem; }
+  footer { flex-direction: column; gap: 1.5rem; text-align: center; }
+}
 </style>
 </head>
 <body>
 
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
 <nav>
-  <a href="#" class="nav-logo"><span>⬡</span> Veil</a>
+  <a href="#" class="nav-logo">⬡ VEIL</a>
   <div class="nav-links">
-    <a href="#how">How it works</a>
-    <a href="#features">Features</a>
+    <a href="#how">How</a>
+    <a href="#compare">vs. Cluely</a>
     <a href="#install">Install</a>
-    <a href="https://github.com/rbc33/Veil" class="btn-nav">GitHub ↗</a>
+    <a href="https://github.com/rbc33/Veil" class="nav-cta">GitHub ↗</a>
   </div>
 </nav>
 
-<main>
-  <!-- HERO -->
-  <div class="hero">
-    <div class="hero-glow"></div>
-
-    <div class="badge">macOS 13+ · Free · Open Source</div>
-
-    <div class="demo-bar">
-      <div class="recorder-dot"></div>
-      <span class="demo-label">Screen recording active</span>
-      <span class="invisible-badge">Veil: invisible</span>
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-bg-text">VEIL</div>
+  <div class="hero-content">
+    <div class="hero-left">
+      <div class="hero-tag">● SCREEN RECORDING ACTIVE — VEIL NOT DETECTED</div>
+      <h1>THE AI<br>ZOOM<br><em>CAN'T</em><br>SEE.</h1>
     </div>
-
-    <h1>Your AI chat.<br><em>Invisible</em> to screen share.</h1>
-
-    <p class="hero-sub">
-      Zoom, Teams, Meet, OBS, QuickTime — none of them see Veil. Only you do. A menu bar AI client that lives outside the capture pipeline.
-    </p>
-
-    <div class="hero-cta">
-      <a href="https://github.com/rbc33/Veil/releases" class="btn-primary">Download DMG →</a>
-      <a href="https://github.com/rbc33/Veil" class="btn-ghost">View on GitHub</a>
-    </div>
-
-    <div class="hero-code">
-      <span class="comment">// The entire secret — one native AppKit API</span><br>
-      <span class="keyword">window</span>.<span class="property">sharingType</span> = <span class="value">.none</span><br><br>
-      <span class="comment">// Removes window from macOS display capture pipeline</span><br>
-      <span class="comment">// before Zoom, OBS, or CGWindowListCreateImage sees it</span>
+    <div class="hero-right">
+      <p class="hero-desc">
+        A <strong>native Swift</strong> macOS menu bar AI client. Invisible to Zoom, Teams, Meet, OBS, QuickTime. The only Cluely alternative that isn't Electron.
+      </p>
+      <div class="hero-cta-group">
+        <a href="https://github.com/rbc33/Veil/releases" class="btn-primary">Download DMG →</a>
+        <a href="https://github.com/rbc33/Veil" class="btn-ghost">View source ↗</a>
+      </div>
+      <div class="hero-stats">
+        <div class="stat-item">
+          <div class="stat-num">~5MB</div>
+          <div class="stat-label">App size</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">0</div>
+          <div class="stat-label">Telemetry</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">8+</div>
+          <div class="stat-label">AI Backends</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-num">MIT</div>
+          <div class="stat-label">License</div>
+        </div>
+      </div>
     </div>
   </div>
+</div>
 
-  <hr class="divider">
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee-inner">
+    <span>INVISIBLE TO ZOOM</span><span class="accent">✦</span>
+    <span>NATIVE SWIFT</span><span class="accent">✦</span>
+    <span>NO ELECTRON</span><span class="accent">✦</span>
+    <span>OLLAMA SUPPORT</span><span class="accent">✦</span>
+    <span>FREE FOREVER</span><span class="accent">✦</span>
+    <span>ZERO TELEMETRY</span><span class="accent">✦</span>
+    <span>INVISIBLE TO TEAMS</span><span class="accent">✦</span>
+    <span>OPEN SOURCE</span><span class="accent">✦</span>
+    <span>NO SUBSCRIPTION</span><span class="accent">✦</span>
+    <span>INVISIBLE TO OBS</span><span class="accent">✦</span>
+    <span>NATIVE SWIFT</span><span class="accent">✦</span>
+    <span>NO ELECTRON</span><span class="accent">✦</span>
+    <span>OLLAMA SUPPORT</span><span class="accent">✦</span>
+    <span>FREE FOREVER</span><span class="accent">✦</span>
+    <span>ZERO TELEMETRY</span><span class="accent">✦</span>
+    <span>INVISIBLE TO ZOOM</span><span class="accent">✦</span>
+    <span>NATIVE SWIFT</span><span class="accent">✦</span>
+    <span>NO ELECTRON</span><span class="accent">✦</span>
+  </div>
+</div>
 
-  <!-- HOW IT WORKS -->
-  <section id="how">
-    <p class="section-label">How it works</p>
-    <h2>Invisible at the OS level,<br>not a trick</h2>
-    <p style="color: var(--muted); max-width: 540px;">
-      No overlays. No display filters. No hacks. A single public, documented AppKit API call makes the window disappear from every capture pipeline on macOS.
-    </p>
+<!-- HOW IT WORKS -->
+<section class="how-section" id="how">
+  <div class="how-grid">
+    <div class="how-left">
+      <div class="section-num">01 / HOW IT WORKS</div>
+      <h2>ONE API<br>CALL.</h2>
+      <div class="code-block">
+<span class="c">// The entire secret.</span>
+<span class="c">// One native AppKit API.</span>
 
-    <div class="how-grid">
-      <div class="how-card">
-        <div class="how-num">01</div>
-        <h3>NSWindow.sharingType = .none</h3>
-        <p>This public AppKit API tells the macOS display server compositor to exclude this window from all capture operations — before any recording app, screenshot tool, or API can observe it.</p>
-      </div>
-      <div class="how-card">
-        <div class="how-num">02</div>
-        <h3>Physical display only</h3>
-        <p>The window renders normally on your monitor. It simply does not exist to capture pipelines — CGWindowListCreateImage, SCStreamConfiguration, AVCaptureScreenInput all return nothing.</p>
-      </div>
-      <div class="how-card">
-        <div class="how-num">03</div>
-        <h3>Every tool is blind to it</h3>
-        <p>Zoom, Google Meet, Microsoft Teams, OBS Studio, QuickTime, Cmd+Shift+5. None of them can capture what the compositor has excluded.</p>
-      </div>
-      <div class="how-card">
-        <div class="how-num">04</div>
-        <h3>No Dock icon</h3>
-        <p>Veil lives only in the menu bar as ⬡. No Dock presence, no window in Mission Control, no trace in Alt+Tab. Completely discreet.</p>
-      </div>
-    </div>
-  </section>
+<span class="k">window</span>.<span class="p">sharingType</span> = <span class="v">.none</span>
 
-  <hr class="divider">
-
-  <!-- FEATURES -->
-  <section id="features">
-    <p class="section-label">Features</p>
-    <h2>Everything you need,<br>nothing you don't</h2>
-
-    <div class="features-grid">
-      <div class="feat-card">
-        <span class="feat-icon">🫥</span>
-        <h3>Invisible by default</h3>
-        <p>Hidden from every screen capture tool on macOS. Only visible on your physical display.</p>
-      </div>
-      <div class="feat-card">
-        <span class="feat-icon">🤖</span>
-        <h3>Multi-backend</h3>
-        <p>Ollama, OpenAI, Anthropic, OpenRouter, NVIDIA NIM, LM Studio, llama.cpp — any OpenAI-compatible endpoint.</p>
-      </div>
-      <div class="feat-card">
-        <span class="feat-icon">🎙</span>
-        <h3>Voice input</h3>
-        <p>On-device transcription via whisper-cpp. Press ⌘⌥, speak, press again. Nothing leaves your machine.</p>
-      </div>
-      <div class="feat-card">
-        <span class="feat-icon">📸</span>
-        <h3>Screenshot analysis</h3>
-        <p>Capture your screen and attach it to your message. The model sees everything. The recorder sees nothing.</p>
-      </div>
-      <div class="feat-card">
-        <span class="feat-icon">🔒</span>
-        <h3>Zero telemetry</h3>
-        <p>No analytics, no crash reporting, no cloud. Network calls go only to the backend you configure.</p>
-      </div>
-      <div class="feat-card">
-        <span class="feat-icon">⌨️</span>
-        <h3>Fully customizable</h3>
-        <p>All keyboard shortcuts configurable. Switch models mid-conversation. Local backends fully on-device.</p>
+<span class="c">// Removes the window from</span>
+<span class="c">// macOS display compositor</span>
+<span class="c">// capture pipeline.</span>
+<span class="c">// Before Zoom, OBS, or</span>
+<span class="c">// CGWindowListCreateImage</span>
+<span class="c">// ever sees it.</span>
       </div>
     </div>
-  </section>
-
-  <hr class="divider">
-
-  <!-- BACKENDS -->
-  <section>
-    <p class="section-label">Backends</p>
-    <h2>Connect to any AI</h2>
-
-    <div class="backends-grid">
-      <div class="backend-pill">Ollama<small>Local · No key</small></div>
-      <div class="backend-pill">OpenAI<small>GPT-4o, o3…</small></div>
-      <div class="backend-pill">Anthropic<small>Claude 3.5, 4…</small></div>
-      <div class="backend-pill">OpenRouter<small>100+ models</small></div>
-      <div class="backend-pill">NVIDIA NIM<small>Free tier</small></div>
-      <div class="backend-pill">LM Studio<small>Local · No key</small></div>
-      <div class="backend-pill">llama.cpp<small>Local · No key</small></div>
-      <div class="backend-pill">Azure OpenAI<small>Enterprise</small></div>
-    </div>
-  </section>
-
-  <hr class="divider">
-
-  <!-- INSTALL -->
-  <section id="install">
-    <p class="section-label">Install</p>
-    <h2>Up and running<br>in 30 seconds</h2>
-
-    <div class="install-block">
-      <span class="comment2"># Option A — DMG (recommended)</span><br>
-      <span class="prompt">$</span> <span class="cmd">open Veil-v1.0.1.dmg</span> <span class="comment2"># drag to Applications</span><br><br>
-      <span class="comment2"># Option B — Build from source</span><br>
-      <span class="prompt">$</span> <span class="cmd">xcode-select --install</span><br>
-      <span class="prompt">$</span> <span class="cmd">git clone https://github.com/rbc33/Veil.git && cd Veil</span><br>
-      <span class="prompt">$</span> <span class="cmd">bash build.sh && open Veil.app</span><br><br>
-      <span class="comment2"># ⬡ appears in your menu bar. Click → Open chat.</span>
-    </div>
-  </section>
-
-  <hr class="divider">
-
-  <!-- PRIVACY -->
-  <section>
-    <p class="section-label">Privacy</p>
-    <h2>Built for people who<br>actually care about privacy</h2>
-
-    <div class="privacy-grid">
-      <div class="privacy-item">
-        <div class="privacy-check">✓</div>
-        <div>
-          <h4>No telemetry</h4>
-          <p>No analytics, no crash reporting, no usage data sent anywhere. Ever.</p>
+    <div class="how-right">
+      <div class="how-step">
+        <div class="step-num">01</div>
+        <div class="step-content">
+          <h3>macOS compositor exclusion</h3>
+          <p>NSWindow.sharingType = .none tells macOS to remove the window from the display server's capture pipeline at the compositor level — before any app can observe it.</p>
         </div>
       </div>
-      <div class="privacy-item">
-        <div class="privacy-check">✓</div>
-        <div>
-          <h4>No cloud</h4>
-          <p>Network calls go only to the backend you explicitly configure. Nothing else.</p>
+      <div class="how-step">
+        <div class="step-num">02</div>
+        <div class="step-content">
+          <h3>Physical display only</h3>
+          <p>The window renders on your monitor normally. It simply does not exist to CGWindowListCreateImage, SCStreamConfiguration, or any screen capture API.</p>
         </div>
       </div>
-      <div class="privacy-item">
-        <div class="privacy-check">✓</div>
-        <div>
-          <h4>Local-first</h4>
-          <p>Ollama, LM Studio, llama.cpp — fully on-device. Nothing leaves your machine.</p>
+      <div class="how-step">
+        <div class="step-num">03</div>
+        <div class="step-content">
+          <h3>Every recorder is blind</h3>
+          <p>Zoom, Google Meet, Teams, OBS, QuickTime, Cmd+Shift+5. All confirmed invisible. Documented public API — not a hack.</p>
         </div>
       </div>
-      <div class="privacy-item">
-        <div class="privacy-check">✓</div>
-        <div>
-          <h4>On-device voice</h4>
-          <p>Whisper transcription runs locally. Your audio never touches a server.</p>
+      <div class="how-step">
+        <div class="step-num">04</div>
+        <div class="step-content">
+          <h3>No Dock icon</h3>
+          <p>Lives only as ⬡ in the menu bar. No Mission Control entry, no Alt+Tab presence. Completely discreet.</p>
         </div>
       </div>
     </div>
-  </section>
-</main>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<section class="compare-section" id="compare">
+  <div class="section-num">02 / VS. CLUELY & ALTERNATIVES</div>
+  <h2>THE ONLY<br>NATIVE ONE.</h2>
+
+  <table class="compare-table">
+    <thead>
+      <tr>
+        <th>Feature</th>
+        <th class="highlight">⬡ Veil</th>
+        <th>Pluely</th>
+        <th>Natively</th>
+        <th>Vysper</th>
+        <th>Cluely</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Tech stack</td>
+        <td class="highlight">Native Swift</td>
+        <td>Tauri/WebView</td>
+        <td>Electron</td>
+        <td>Electron</td>
+        <td>Electron</td>
+      </tr>
+      <tr>
+        <td>App size</td>
+        <td class="highlight">~5MB</td>
+        <td>~10MB</td>
+        <td>~150MB</td>
+        <td>~200MB</td>
+        <td>~300MB</td>
+      </tr>
+      <tr>
+        <td>macOS only</td>
+        <td class="highlight"><span class="check">✓</span> Purpose-built</td>
+        <td><span class="cross">✗</span> Cross-platform</td>
+        <td><span class="cross">✗</span> Cross-platform</td>
+        <td><span class="cross">✗</span> Cross-platform</td>
+        <td><span class="cross">✗</span></td>
+      </tr>
+      <tr>
+        <td>Ollama / local LLMs</td>
+        <td class="highlight"><span class="check">✓</span> Full support</td>
+        <td><span class="warn">~</span> Partial</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="cross">✗</span> Cloud only</td>
+      </tr>
+      <tr>
+        <td>Price</td>
+        <td class="highlight"><span class="check">✓</span> Free forever</td>
+        <td><span class="check">✓</span> Free</td>
+        <td><span class="warn">~</span> Free tier</td>
+        <td><span class="check">✓</span> Free</td>
+        <td><span class="cross">✗</span> $20–$149/mo</td>
+      </tr>
+      <tr>
+        <td>Telemetry</td>
+        <td class="highlight"><span class="check">✓</span> Zero</td>
+        <td><span class="warn">~</span> Unknown</td>
+        <td><span class="warn">~</span> Limited</td>
+        <td><span class="warn">~</span> Unknown</td>
+        <td><span class="cross">✗</span> Data breach 2025</td>
+      </tr>
+      <tr>
+        <td>Voice input</td>
+        <td class="highlight"><span class="check">✓</span> On-device</td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+        <td><span class="check">✓</span></td>
+      </tr>
+      <tr>
+        <td>Open source</td>
+        <td class="highlight"><span class="check">✓</span> MIT</td>
+        <td><span class="check">✓</span></td>
+        <td><span class="check">✓</span></td>
+        <td><span class="check">✓</span></td>
+        <td><span class="cross">✗</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- FEATURES -->
+<section class="features-section">
+  <div class="section-num">03 / FEATURES</div>
+  <h2>BUILT FOR<br>MACOS.</h2>
+  <div class="features-grid">
+    <div class="feat-item">
+      <span class="feat-icon">🫥</span>
+      <h3>Invisible by default</h3>
+      <p>Hidden from every screen capture tool on macOS. Zoom, Teams, Meet, OBS, QuickTime, Cmd+Shift+5.</p>
+    </div>
+    <div class="feat-item">
+      <span class="feat-icon">⚡</span>
+      <h3>Native Swift, instant startup</h3>
+      <p>No Electron, no Chromium, no WebView overhead. ~5MB app that opens in milliseconds.</p>
+    </div>
+    <div class="feat-item">
+      <span class="feat-icon">🤖</span>
+      <h3>8+ AI backends</h3>
+      <p>Ollama, OpenAI, Claude, OpenRouter, NVIDIA NIM, LM Studio, llama.cpp. Any OpenAI-compatible endpoint.</p>
+    </div>
+    <div class="feat-item">
+      <span class="feat-icon">🎙</span>
+      <h3>On-device voice input</h3>
+      <p>whisper-cpp transcription runs entirely on your Mac. Your audio never touches a server.</p>
+    </div>
+    <div class="feat-item">
+      <span class="feat-icon">📸</span>
+      <h3>Screenshot analysis</h3>
+      <p>Capture your screen and attach to a message. The AI sees everything. Recorders see nothing.</p>
+    </div>
+    <div class="feat-item">
+      <span class="feat-icon">🔒</span>
+      <h3>Zero telemetry</h3>
+      <p>No analytics, no crash reports, no accounts. Network calls go only to your configured backend.</p>
+    </div>
+  </div>
+</section>
+
+<!-- BACKENDS -->
+<section class="backends-section">
+  <div class="section-num">04 / BACKENDS</div>
+  <h2>CONNECT<br>ANYTHING.</h2>
+  <div class="backends-grid">
+    <div class="backend-item local">
+      <div class="backend-name">Ollama</div>
+      <div class="backend-type">Local · No key needed</div>
+    </div>
+    <div class="backend-item local">
+      <div class="backend-name">LM Studio</div>
+      <div class="backend-type">Local · No key needed</div>
+    </div>
+    <div class="backend-item local">
+      <div class="backend-name">llama.cpp</div>
+      <div class="backend-type">Local · No key needed</div>
+    </div>
+    <div class="backend-item">
+      <div class="backend-name">NVIDIA NIM</div>
+      <div class="backend-type">Free tier · No credit card</div>
+    </div>
+    <div class="backend-item">
+      <div class="backend-name">OpenAI</div>
+      <div class="backend-type">Cloud · API key</div>
+    </div>
+    <div class="backend-item">
+      <div class="backend-name">Anthropic</div>
+      <div class="backend-type">Cloud · API key</div>
+    </div>
+    <div class="backend-item">
+      <div class="backend-name">OpenRouter</div>
+      <div class="backend-type">Cloud · 100+ models</div>
+    </div>
+    <div class="backend-item">
+      <div class="backend-name">Azure OpenAI</div>
+      <div class="backend-type">Cloud · Enterprise</div>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section class="install-section" id="install">
+  <div class="section-num">05 / INSTALL</div>
+  <h2>30 SECONDS<br>TO START.</h2>
+  <div class="install-grid">
+    <div class="install-option">
+      <h3><span>A</span> DMG — Recommended</h3>
+      <div class="install-dmg">
+        <div class="dmg-step">
+          <div class="dmg-num">1</div>
+          <p>Download <a href="https://github.com/rbc33/Veil/releases">Veil-v1.0.1.dmg</a> from Releases</p>
+        </div>
+        <div class="dmg-step">
+          <div class="dmg-num">2</div>
+          <p>Drag Veil.app to Applications folder</p>
+        </div>
+        <div class="dmg-step">
+          <div class="dmg-num">3</div>
+          <p>Open — ⬡ appears in your menu bar. Click → Open chat.</p>
+        </div>
+      </div>
+    </div>
+    <div class="install-option">
+      <h3><span>B</span> Build from source</h3>
+      <div class="terminal">
+        <span class="comment"># macOS 13+, Xcode CLI Tools</span><br>
+        <span class="prompt">$</span> <span class="cmd">xcode-select --install</span><br><br>
+        <span class="prompt">$</span> <span class="cmd">git clone https://github.com/rbc33/Veil.git</span><br>
+        <span class="prompt">$</span> <span class="cmd">cd Veil && bash build.sh</span><br>
+        <span class="prompt">$</span> <span class="cmd">open Veil.app</span><br><br>
+        <span class="comment"># ⬡ appears in menu bar.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="cta-section">
+  <h2>STOP PAYING<br>FOR CLUELY.</h2>
+  <p>Free. Native. Open source. The AI only you can see.</p>
+  <a href="https://github.com/rbc33/Veil/releases" class="btn-primary">Download Veil — it's free →</a>
+</section>
 
 <footer>
-  <div class="footer-inner">
-    <span>Made with ⬡ — because some things should stay invisible.</span>
-    <span>
-      <a href="https://github.com/rbc33/Veil">GitHub</a> ·
-      <a href="https://github.com/rbc33/Veil/releases">Releases</a> ·
-      <a href="https://github.com/rbc33/Veil/issues">Issues</a> ·
-      MIT License
-    </span>
+  <div class="footer-logo">⬡ VEIL</div>
+  <div class="footer-links">
+    <a href="https://github.com/rbc33/Veil">GitHub</a>
+    <a href="https://github.com/rbc33/Veil/releases">Releases</a>
+    <a href="https://github.com/rbc33/Veil/issues">Issues</a>
+    <a href="https://rbc33.github.io/Veil">Landing</a>
   </div>
+  <div class="footer-copy">MIT LICENSE — MADE WITH ⬡</div>
 </footer>
 
+<script>
+  // Custom cursor
+  const cursor = document.getElementById('cursor');
+  const ring = document.getElementById('cursorRing');
+  let mx = 0, my = 0, rx = 0, ry = 0;
+
+  document.addEventListener('mousemove', e => {
+    mx = e.clientX; my = e.clientY;
+    cursor.style.left = mx + 'px';
+    cursor.style.top = my + 'px';
+  });
+
+  function animateRing() {
+    rx += (mx - rx) * 0.12;
+    ry += (my - ry) * 0.12;
+    ring.style.left = rx + 'px';
+    ring.style.top = ry + 'px';
+    requestAnimationFrame(animateRing);
+  }
+  animateRing();
+
+  // Fade in sections on scroll
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.opacity = '1';
+        e.target.style.transform = 'translateY(0)';
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('section').forEach(s => {
+    s.style.opacity = '0';
+    s.style.transform = 'translateY(20px)';
+    s.style.transition = 'opacity 0.7s ease, transform 0.7s ease';
+    observer.observe(s);
+  });
+</script>
 </body>
 </html>
