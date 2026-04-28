@@ -53,7 +53,7 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
             guard !isRecording else { return }
             requestMicAndRecord()
         case "closeWindow":
-            DispatchQueue.main.async { self.view.window?.performClose(nil) }
+            DispatchQueue.main.async { self.view.window?.orderOut(nil) }
         case "stopStream":
             currentStreamSession?.invalidateAndCancel()
             currentStreamSession = nil

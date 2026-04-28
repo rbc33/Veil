@@ -1,6 +1,6 @@
 import AppKit
 
-class AppDelegate: NSObject, NSApplicationDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var statusItem: NSStatusItem?
     var chatWindow: ChatWindow?
     var globalHotKey: GlobalHotKey?
@@ -51,12 +51,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func buildMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Open chat", action: #selector(toggleChat), keyEquivalent: ""))
+        menu.delegate = self
+        menu.autoenablesItems = false
+        let openItem = NSMenuItem(title: "Open chat", action: #selector(toggleChat), keyEquivalent: "")
+        openItem.target = self
+        openItem.isEnabled = true
+        menu.addItem(openItem)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(configureBackend), keyEquivalent: ""))
+        let settingsItem = NSMenuItem(title: "Settings…", action: #selector(configureBackend), keyEquivalent: "")
+        settingsItem.target = self
+        settingsItem.isEnabled = true
+        menu.addItem(settingsItem)
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        quitItem.isEnabled = true
+        menu.addItem(quitItem)
         statusItem?.menu = menu
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func openMenu() {}
@@ -66,6 +81,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func configureBackend() {
+        // Defer so the status menu finishes closing before the modal starts —
+        // calling runModal inside a menu action handler corrupts AppKit's
+        // menu-tracking state and leaves items grayed afterward.
+        DispatchQueue.main.async { [weak self] in self?.showSettingsPanel() }
+    }
+
+    private func showSettingsPanel() {
         let cfg = BackendConfig.current
 
         let screenW = NSScreen.main?.frame.width ?? 1440
@@ -182,6 +204,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             weak var keyField: NSSecureTextField?
             weak var backendPopup: NSPopUpButton?
             weak var statusLbl: NSTextField?
+            weak var refreshBtn: NSButton?
             var modelPicker: PrivateDropdown?
             var presets: [Preset] = []
 
@@ -204,7 +227,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 var req = URLRequest(url: reqURL, timeoutInterval: 5)
                 if !apiKey.isEmpty { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
                 URLSession.shared.dataTask(with: req) { _, response, error in
-                    DispatchQueue.main.async {
+                    RunLoop.main.perform(inModes: [.common]) {
                         if let e = error {
                             status.stringValue = "✗ \(e.localizedDescription)"; status.textColor = .systemRed
                         } else if let http = response as? HTTPURLResponse, http.statusCode < 300 {
@@ -220,14 +243,27 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             @objc func refresh() {
                 guard let url = urlField?.stringValue.trimmingCharacters(in: .whitespacesAndNewlines),
                       let picker = modelPicker else { return }
-                let isOllama = currentType == .ollama
+                let backend  = currentType
+                let isOllama = backend == .ollama
                 let apiKey   = keyField?.stringValue ?? ""
+                refreshBtn?.isEnabled = false
+                refreshBtn?.title = "…"
                 picker.items = ["Loading…"]
                 let endpoint = isOllama ? "\(url)/api/tags" : "\(url)/models"
-                guard let reqURL = URL(string: endpoint) else { picker.items = ["Invalid URL"]; return }
+                guard let reqURL = URL(string: endpoint) else {
+                    picker.items = ["Invalid URL"]
+                    refreshBtn?.isEnabled = true
+                    refreshBtn?.title = "↺"
+                    return
+                }
                 var req = URLRequest(url: reqURL, timeoutInterval: 5)
-                if !apiKey.isEmpty { req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization") }
-                URLSession.shared.dataTask(with: req) { data, _, _ in
+                if backend == .anthropic {
+                    if !apiKey.isEmpty { req.setValue(apiKey, forHTTPHeaderField: "x-api-key") }
+                    req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+                } else if !apiKey.isEmpty {
+                    req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                }
+                URLSession.shared.dataTask(with: req) { [weak self] data, response, _ in
                     var names: [String] = []
                     if let data = data {
                         if isOllama {
@@ -242,9 +278,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             }
                         }
                     }
-                    DispatchQueue.main.async {
-                        picker.items = names.isEmpty ? ["No models found"] : names
-                        if picker.selected.isEmpty, let first = names.first { picker.selected = first }
+                    let ok = !names.isEmpty
+                    RunLoop.main.perform(inModes: [.common]) { [weak self] in
+                        picker.items = ok ? names : ["No models found"]
+                        if ok {
+                            if picker.selected.isEmpty || !names.contains(picker.selected) {
+                                picker.selected = names[0]
+                            }
+                        }
+                        self?.refreshBtn?.isEnabled = true
+                        self?.refreshBtn?.title = ok ? "✓" : "✗"
+                        let btn = self?.refreshBtn
+                        Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in btn?.title = "↺" }
                     }
                 }.resume()
             }
@@ -284,6 +329,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         testHandler.backendPopup = backendPopup
         testHandler.statusLbl    = statusLbl
         testHandler.modelPicker  = modelPicker
+        testHandler.refreshBtn   = refreshBtn
         testHandler.presets      = presets
         objc_setAssociatedObject(stack, "testHandler", testHandler, .OBJC_ASSOCIATION_RETAIN)
         testBtn.target    = testHandler
@@ -436,9 +482,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         objc_setAssociatedObject(panel, "btnHandler", btnHandler, .OBJC_ASSOCIATION_RETAIN)
         panel.initialFirstResponder = urlField
 
-        NSApp.runModal(for: panel)
+        panel.makeKeyAndOrderFront(nil)
+        let modalSession = NSApp.beginModalSession(for: panel)
+        var response: NSApplication.ModalResponse = .continue
+        while response == .continue {
+            response = NSApp.runModalSession(modalSession)
+            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
+        }
+        NSApp.endModalSession(modalSession)
         panel.orderOut(nil)
         modelPicker.close()
+        NSApp.activate(ignoringOtherApps: true)
 
         if saved {
             let idx = backendPopup.indexOfSelectedItem

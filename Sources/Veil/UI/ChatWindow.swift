@@ -50,8 +50,8 @@ class ChatWindow: NSObject, NSWindowDelegate {
     }
 
     func showAndFocus() {
-        window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
         window.sharingType = .none
     }
 
