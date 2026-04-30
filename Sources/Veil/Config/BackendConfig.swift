@@ -5,7 +5,6 @@ enum BackendType: String {
     case openai     = "openai"
     case anthropic  = "anthropic"
     case openrouter = "openrouter"
-    case azure      = "azure"
 }
 
 struct BackendConfig {

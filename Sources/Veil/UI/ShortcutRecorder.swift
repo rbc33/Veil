@@ -25,6 +25,10 @@ class ShortcutRecorder: NSObject {
         field.addGestureRecognizer(NSClickGestureRecognizer(target: self, action: #selector(clicked)))
     }
 
+    deinit {
+        if let m = monitor { NSEvent.removeMonitor(m); monitor = nil }
+    }
+
     @objc private func clicked() {
         recording ? stopRecording(save: false) : startRecording()
     }

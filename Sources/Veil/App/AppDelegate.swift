@@ -120,7 +120,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Preset(label: "OpenAI",        type: .openai,     url: "https://api.openai.com/v1",           hint: "Requires API key"),
             Preset(label: "Anthropic",     type: .anthropic,  url: "https://api.anthropic.com/v1",        hint: "Requires API key"),
             Preset(label: "OpenRouter",    type: .openrouter, url: "https://openrouter.ai/api/v1",        hint: "Requires API key"),
-            Preset(label: "Azure OpenAI",  type: .azure,      url: "",                                    hint: "Enter your Azure endpoint"),
             Preset(label: "NVIDIA NIM",    type: .openai,     url: "https://integrate.api.nvidia.com/v1", hint: "Requires API key"),
             Preset(label: "llama.cpp",     type: .openai,     url: "http://localhost:8080/v1",            hint: "Local llama.cpp server"),
             Preset(label: "LM Studio",     type: .openai,     url: "http://localhost:1234/v1",            hint: "Local LM Studio server"),
@@ -482,14 +481,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         objc_setAssociatedObject(panel, "btnHandler", btnHandler, .OBJC_ASSOCIATION_RETAIN)
         panel.initialFirstResponder = urlField
 
-        panel.makeKeyAndOrderFront(nil)
-        let modalSession = NSApp.beginModalSession(for: panel)
-        var response: NSApplication.ModalResponse = .continue
-        while response == .continue {
-            response = NSApp.runModalSession(modalSession)
-            RunLoop.current.run(mode: .default, before: Date(timeIntervalSinceNow: 0.01))
-        }
-        NSApp.endModalSession(modalSession)
+        NSApp.runModal(for: panel)
         panel.orderOut(nil)
         modelPicker.close()
         NSApp.activate(ignoringOtherApps: true)

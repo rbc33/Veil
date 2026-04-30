@@ -131,7 +131,6 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         case .openai:      fetchOpenAIModels(cfg: cfg)
         case .anthropic:   fetchAnthropicModels(cfg: cfg)
         case .openrouter:  fetchOpenAIModels(cfg: cfg)
-        case .azure:       fetchOpenAIModels(cfg: cfg)
         }
     }
 
@@ -191,7 +190,6 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         case .openai:     streamOpenAI(messages: msgs, model: model, cfg: cfg, image: image)
         case .anthropic:  streamAnthropic(messages: msgs, model: model, cfg: cfg, image: image)
         case .openrouter: streamOpenAI(messages: msgs, model: model, cfg: cfg, image: image)
-        case .azure:      streamAzure(messages: msgs, model: model, cfg: cfg, image: image)
         }
     }
 
@@ -216,27 +214,6 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if !cfg.apiKey.isEmpty { req.setValue("Bearer \(cfg.apiKey)", forHTTPHeaderField: "Authorization") }
-        var msgs = messages
-        if let img = image, !msgs.isEmpty {
-            var last = msgs[msgs.count - 1]
-            if let text = last["content"] as? String {
-                last["content"] = [
-                    ["type": "text", "text": text],
-                    ["type": "image_url", "image_url": ["url": "data:image/png;base64,\(img)"]]
-                ]
-                msgs[msgs.count - 1] = last
-            }
-        }
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["model": model, "stream": true, "messages": msgs])
-        startStream(req: req, parser: OpenAIStreamParser())
-    }
-
-    func streamAzure(messages: [[String: Any]], model: String, cfg: BackendConfig, image: String? = nil) {
-        guard let url = URL(string: "\(cfg.url)/chat/completions") else { return }
-        var req = URLRequest(url: url)
-        req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if !cfg.apiKey.isEmpty { req.setValue(cfg.apiKey, forHTTPHeaderField: "api-key") }
         var msgs = messages
         if let img = image, !msgs.isEmpty {
             var last = msgs[msgs.count - 1]

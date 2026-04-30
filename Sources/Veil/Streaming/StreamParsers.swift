@@ -41,6 +41,7 @@ struct OpenAIStreamParser: StreamParser {
               let choices = j["choices"] as? [[String: Any]],
               let delta = choices.first?["delta"] as? [String: Any]
         else { return nil }
-        return delta["content"] as? String
+        if let content = delta["content"] as? String, !content.isEmpty { return content }
+        return delta["reasoning_content"] as? String
     }
 }
