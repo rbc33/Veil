@@ -246,13 +246,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let isOllama = backend == .ollama
                 let apiKey   = keyField?.stringValue ?? ""
                 refreshBtn?.isEnabled = false
-                refreshBtn?.title = "…"
                 picker.items = ["Loading…"]
                 let endpoint = isOllama ? "\(url)/api/tags" : "\(url)/models"
                 guard let reqURL = URL(string: endpoint) else {
                     picker.items = ["Invalid URL"]
                     refreshBtn?.isEnabled = true
-                    refreshBtn?.title = "↺"
                     return
                 }
                 var req = URLRequest(url: reqURL, timeoutInterval: 5)
@@ -286,9 +284,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                             }
                         }
                         self?.refreshBtn?.isEnabled = true
-                        self?.refreshBtn?.title = ok ? "✓" : "✗"
-                        let btn = self?.refreshBtn
-                        Timer.scheduledTimer(withTimeInterval: 1.5, repeats: false) { _ in btn?.title = "↺" }
                     }
                 }.resume()
             }
@@ -314,9 +309,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         modelsRow.spacing = 8
         let modelsLabel = NSTextField(labelWithString: "Model:")
         modelsLabel.frame.size.width = 70
-        let refreshBtn = NSButton(title: "↺", target: nil, action: nil)
+        let refreshBtn = NSButton(title: "", target: nil, action: nil)
+        refreshBtn.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh")
         refreshBtn.bezelStyle = .rounded
-        refreshBtn.font = NSFont.systemFont(ofSize: 13)
         modelsRow.addArrangedSubview(modelsLabel)
         modelsRow.addArrangedSubview(modelPicker.button)
         modelsRow.addArrangedSubview(refreshBtn)
