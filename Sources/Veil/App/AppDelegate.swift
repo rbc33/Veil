@@ -96,7 +96,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let fieldW  = panelW - 2 * pad - 90
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: panelW, height: 400),
+            contentRect: NSRect(x: 0, y: 0, width: panelW, height: 450),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -403,6 +403,54 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         sysRow.addArrangedSubview(sysLabel)
         sysRow.addArrangedSubview(sysScroll)
 
+        let shotDefaultText = "Look at this screenshot. Find any programming problem, error, or bug and explain how to fix it."
+        let shotLabel = NSTextField(labelWithString: "Screenshot prompt:")
+        shotLabel.font = NSFont.systemFont(ofSize: 11)
+        let shotDefaultBtn = NSButton(title: "Default", target: nil, action: nil)
+        shotDefaultBtn.bezelStyle = .rounded
+        shotDefaultBtn.font = NSFont.systemFont(ofSize: 10)
+        let shotLabelRow = NSStackView()
+        shotLabelRow.orientation = .horizontal
+        shotLabelRow.spacing = 8
+        shotLabelRow.addArrangedSubview(shotLabel)
+        shotLabelRow.addArrangedSubview(shotDefaultBtn)
+
+        let shotTextView = NSTextView()
+        shotTextView.isEditable = true
+        shotTextView.isRichText = false
+        shotTextView.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        shotTextView.string = UserDefaults.standard.string(forKey: "screenshotPrompt") ?? ""
+        shotTextView.textContainerInset = NSSize(width: 4, height: 4)
+        shotTextView.backgroundColor = NSColor(red: 30/255, green: 32/255, blue: 38/255, alpha: 1)
+        let shotScroll = NSScrollView()
+        shotScroll.documentView = shotTextView
+        shotScroll.hasVerticalScroller = true
+        shotScroll.autohidesScrollers = true
+        shotScroll.borderType = .lineBorder
+        shotScroll.layer?.borderColor = NSColor.white.withAlphaComponent(0.15).cgColor
+        shotScroll.wantsLayer = true
+        shotScroll.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        shotScroll.widthAnchor.constraint(equalToConstant: (panelW - 2 * pad) * 0.9).isActive = true
+
+        class DefaultBtnHandler: NSObject {
+            weak var textView: NSTextView?
+            var defaultText = ""
+            @objc func setDefault() { textView?.string = defaultText }
+        }
+        let shotDefaultHandler = DefaultBtnHandler()
+        shotDefaultHandler.textView = shotTextView
+        shotDefaultHandler.defaultText = shotDefaultText
+        objc_setAssociatedObject(stack, "shotDefaultHandler", shotDefaultHandler, .OBJC_ASSOCIATION_RETAIN)
+        shotDefaultBtn.target = shotDefaultHandler
+        shotDefaultBtn.action = #selector(DefaultBtnHandler.setDefault)
+
+        let shotRow = NSStackView()
+        shotRow.orientation = .vertical
+        shotRow.alignment = .leading
+        shotRow.spacing = 3
+        shotRow.addArrangedSubview(shotLabelRow)
+        shotRow.addArrangedSubview(shotScroll)
+
         stack.addArrangedSubview(backendRow)
         stack.addArrangedSubview(urlRow)
         stack.addArrangedSubview(hint)
@@ -413,7 +461,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         stack.addArrangedSubview(captureRow)
         stack.addArrangedSubview(toggleRow)
         stack.addArrangedSubview(sysRow)
-        stack.setCustomSpacing(2, after: sysRow)
+        stack.addArrangedSubview(shotRow)
+        stack.setCustomSpacing(2, after: shotRow)
 
         var saved = false
         let saveBtn   = NSButton(title: "Save",   target: nil, action: nil)
@@ -493,6 +542,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             BackendConfig.current = newCfg
             let sysPrompt = sysTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
             UserDefaults.standard.set(sysPrompt.isEmpty ? nil : sysPrompt, forKey: "systemPrompt")
+            let shotPrompt = shotTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            UserDefaults.standard.set(shotPrompt.isEmpty ? nil : shotPrompt, forKey: "screenshotPrompt")
+            chatWindow?.webView.sendScreenshotPrompt()
             chatWindow?.webView.fetchModels()
         }
     }

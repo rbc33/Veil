@@ -158,6 +158,8 @@ html,body{height:100%;background:transparent;color:var(--text);
 </div>
 <script>
 let model = '', busy = false, currentBody = null;
+let screenshotPrompt = null;
+function setScreenshotPrompt(p) { screenshotPrompt = p; }
 let micState = 'idle', streaming = false;
 let autoScroll = true;
 let hasScreenshot = false;
@@ -166,6 +168,7 @@ const CTX_WINDOW = 20;
 let lastUserText = '';
 let lastScreenshot = null;
 let _messagesLenBeforeLastUser = 0;
+let streamStartTime = 0, tokenCount = 0;
 
 function setSavedModel(m) { window.savedModel = m; }
 
@@ -400,6 +403,7 @@ btn.addEventListener('click', e => {
       } else {
         messages.length = _messagesLenBeforeLastUser;
       }
+      showStreamStats();
     }
     currentBody = null;
     btn.textContent = '↵'; btn.classList.remove('stopping');
@@ -467,11 +471,21 @@ function addMsg(role) {
 
 function appendToken(t) {
   if (!currentBody) return;
+  tokenCount++;
   currentBody.textContent += t;
   if (autoScroll) {
     const msgs = document.getElementById('msgs');
     msgs.scrollTop = msgs.scrollHeight;
   }
+}
+
+function showStreamStats() {
+  if (!currentBody || !streamStartTime) return;
+  const elapsed = (Date.now() - streamStartTime) / 1000;
+  if (elapsed < 0.1 || tokenCount < 2) return;
+  const tps = (tokenCount / elapsed).toFixed(1);
+  const lbl = currentBody.closest('.msg') && currentBody.closest('.msg').querySelector('.lbl');
+  if (lbl) lbl.textContent = lbl.textContent.split('·')[0].trim() + ' · ' + tps + ' t/s';
 }
 
 function endStream(isError) {
@@ -488,6 +502,7 @@ function endStream(isError) {
   } else {
     messages.length = _messagesLenBeforeLastUser;
   }
+  showStreamStats();
   if (isError || !raw) {
     const msgDiv = currentBody.closest('.msg');
     const retryBtn = document.createElement('button');
@@ -534,9 +549,9 @@ function clearScreenshotUI() {
   screenshotIndicator.style.display = 'none';
 }
 
-function onScreenshotCaptured(b64) {
+function onScreenshotCaptured() {
   hasScreenshot = true;
-  lastScreenshot = b64 || null;
+  lastScreenshot = true;
   screenshotBtn.innerHTML = SCREENSHOT_ICON;
   screenshotBtn.classList.add('captured');
   screenshotBtn.title = 'Screenshot attached — click to remove';
@@ -551,28 +566,31 @@ function onScreenshotError() {
   screenshotBtn.title = 'Screen capture failed — check System Settings > Privacy > Screen Recording';
 }
 
-function sendText(text, screenshotB64) {
+function sendText(text, withScreenshot) {
   if (busy || !text) return;
   modelDropdown.classList.remove('open');
-  const img = screenshotB64 || (hasScreenshot ? lastScreenshot : null);
-  addMsg('user').textContent = text + (img ? ' 📎' : '');
+  const hasImg = !!(withScreenshot || hasScreenshot);
+  addMsg('user').textContent = text + (hasImg ? ' 📎' : '');
   currentBody = addMsg('ai');
   currentBody.classList.add('cursor');
   busy = true; streaming = true;
+  streamStartTime = Date.now(); tokenCount = 0;
   btn.textContent = '⏹'; btn.classList.add('stopping');
   lastUserText = text;
-  lastScreenshot = img;
+  lastScreenshot = hasImg;
   _messagesLenBeforeLastUser = messages.length;
   messages.push({role: 'user', content: text});
   if (hasScreenshot) clearScreenshotUI();
-  const ctx = messages.length > CTX_WINDOW ? messages.slice(-CTX_WINDOW) : messages;
-  window.webkit.messageHandlers.sendMessage.postMessage({messages: ctx, model: model, screenshot: img || null});
+  const ctx = hasImg
+    ? [messages[messages.length - 1]]
+    : (messages.length > CTX_WINDOW ? messages.slice(-CTX_WINDOW) : messages);
+  window.webkit.messageHandlers.sendMessage.postMessage({messages: ctx, model: model, screenshot: hasImg || null});
 }
 
 function send() {
   const inp = document.getElementById('inp');
   let text = inp.value.trim();
-  if (!text && hasScreenshot) text = 'Look at this screenshot. Find any programming problem, error, or bug and explain how to fix it.';
+  if (!text && hasScreenshot) text = screenshotPrompt || 'Look at this screenshot. Find any programming problem, error, or bug and explain how to fix it.';
   if (!text) return;
   inp.value = ''; inp.style.height = 'auto';
   sendText(text);

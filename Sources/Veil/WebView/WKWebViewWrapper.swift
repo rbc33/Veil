@@ -6,7 +6,7 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
     let recorder = AudioRecorder()
     var isRecording = false
     var currentStreamSession: URLSession?
-    var pendingScreenshot: String? = nil
+    var storedScreenshot: String? = nil
 
     init(frame: NSRect = .zero) {
         let config = WKWebViewConfiguration()
@@ -28,25 +28,26 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
             guard let body = message.body as? [String: Any],
                   let messages = body["messages"] as? [[String: Any]],
                   let model = body["model"] as? String else { return }
-            let img = (body["screenshot"] as? String) ?? pendingScreenshot
-            pendingScreenshot = nil
+            let useScreenshot = (body["screenshot"] as? NSNumber)?.boolValue == true
+            let img = useScreenshot ? storedScreenshot : nil
             streamResponse(messages: messages, model: model, image: img)
         case "captureScreen":
             DispatchQueue.global(qos: .userInitiated).async { [weak self] in
                 guard let self = self else { return }
                 if let b64 = captureScreenBase64() {
-                    self.pendingScreenshot = b64
-                    DispatchQueue.main.async { self.view.evaluateJavaScript("onScreenshotCaptured('\(b64)')", completionHandler: nil) }
+                    self.storedScreenshot = b64
+                    DispatchQueue.main.async { self.view.evaluateJavaScript("onScreenshotCaptured()", completionHandler: nil) }
                 } else {
                     DispatchQueue.main.async { self.view.evaluateJavaScript("onScreenshotError()", completionHandler: nil) }
                 }
             }
         case "clearScreenshot":
-            pendingScreenshot = nil
+            storedScreenshot = nil
         case "initModel":
             sendSavedModel()
             sendShortcut()
             sendCaptureShortcut()
+            sendScreenshotPrompt()
         case "loadModels":   fetchModels()
         case "checkWhisper": checkWhisperInstall()
         case "startRecording":
@@ -122,6 +123,18 @@ class WKWebViewWrapper: NSObject, WKScriptMessageHandler {
 
     func sendCaptureShortcut() {
         view.evaluateJavaScript("setCaptureShortcut(\(RecordingShortcut.capture.jsJSON))", completionHandler: nil)
+    }
+
+    func sendScreenshotPrompt() {
+        let prompt = UserDefaults.standard.string(forKey: "screenshotPrompt") ?? ""
+        if prompt.isEmpty {
+            view.evaluateJavaScript("setScreenshotPrompt(null)", completionHandler: nil)
+        } else {
+            let esc = prompt
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "'", with: "\\'")
+            view.evaluateJavaScript("setScreenshotPrompt('\(esc)')", completionHandler: nil)
+        }
     }
 
     func fetchModels() {

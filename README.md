@@ -153,7 +153,6 @@ Open **⬡ → Settings…** and pick your backend:
 | **NVIDIA NIM** | `https://integrate.api.nvidia.com/v1` | Free tier available |
 | **LM Studio** | `http://localhost:1234/v1` | Local, no key |
 | **llama.cpp** | `http://localhost:8080/v1` | Local, no key |
-| **Azure OpenAI** | *(your endpoint)* | API key required |
 
 Any OpenAI-compatible server works — select **OpenAI** and set the URL.
 

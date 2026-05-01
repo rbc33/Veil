@@ -7,4 +7,6 @@ Veil.icns
 Veil.iconset/
 .env
 set_icon.sh
+.DS_Store
+extra/*
 
