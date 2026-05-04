@@ -1,10 +1,8 @@
 .build/
-OllamaChat.app/*
-OllamaChat.app/Contents/MacOS/OllamaChat
-Veil.app/*
+Ghostbar.app/*
 *.dmg
-Veil.icns
-Veil.iconset/
+Ghostbar.icns
+Ghostbar.iconset/
 .env
 set_icon.sh
 .DS_Store

@@ -2,11 +2,11 @@
 import PackageDescription
 
 let package = Package(
-    name: "Veil",
+    name: "Ghostbar",
     platforms: [.macOS(.v13)],
     targets: [
         .executableTarget(
-            name: "Veil",
+            name: "Ghostbar",
             path: "Sources/Veil",
             linkerSettings: [.linkedFramework("Carbon")]
         )

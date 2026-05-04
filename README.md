@@ -4,11 +4,11 @@
 <img src="https://img.shields.io/badge/Swift-5.9-orange?style=flat-square&logo=swift&logoColor=white" />
 <img src="https://img.shields.io/badge/No_Electron-✓-green?style=flat-square" />
 <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" />
-<img src="https://img.shields.io/github/stars/rbc33/Veil?style=flat-square&color=yellow" />
+<img src="https://img.shields.io/github/stars/rbc33/Ghostbar?style=flat-square&color=yellow" />
 
 <br><br>
 
-# ⬡ Veil
+# ⬡ Ghostbar
 
 ### The only native Swift macOS Cluely alternative.
 
@@ -17,19 +17,19 @@
 
 <br>
 
-[**Download DMG**](https://github.com/rbc33/Veil/releases) · [**Build from source**](#install) · [**Report bug**](https://github.com/rbc33/Veil/issues)
+[**Download DMG**](https://github.com/rbc33/Ghostbar/releases) · [**Build from source**](#install) · [**Report bug**](https://github.com/rbc33/Ghostbar/issues)
 
 </div>
 
 ---
 
-## Why Veil over Pluely, Natively, or Vysper?
+## Why Ghostbar over Pluely, Natively, or Vysper?
 
 Every other Cluely alternative is built on **Electron or Tauri** — that means a bundled Chromium browser, 200–500MB of RAM just to open, and slow startup times.
 
-Veil is written in **native Swift using AppKit**. It starts instantly, uses minimal memory, and feels like a real macOS app — because it is one.
+Ghostbar is written in **native Swift using AppKit**. It starts instantly, uses minimal memory, and feels like a real macOS app — because it is one.
 
-| | Veil | Pluely | Natively | Vysper |
+| | Ghostbar | Pluely | Natively | Vysper |
 |---|---|---|---|---|
 | **Tech** | ✅ Native Swift | Tauri/Rust | Electron | Electron |
 | **macOS only** | ✅ Purpose-built | ❌ Cross-platform | ❌ Cross-platform | ❌ Cross-platform |
@@ -43,7 +43,7 @@ Veil is written in **native Swift using AppKit**. It starts instantly, uses mini
 
 ---
 
-## What is Veil?
+## What is Ghostbar?
 
 A macOS menu bar AI client that is **completely invisible to screen capture**.
 
@@ -61,7 +61,7 @@ No hacks. No injection. A public, documented Apple API that removes the window f
 ## Use cases
 
 **Technical interviews**  
-LeetCode, HackerRank, take-home assessments. Ask for hints, complexity analysis, edge cases — all while sharing your screen. The interviewer sees your code. They don't see Veil.
+LeetCode, HackerRank, take-home assessments. Ask for hints, complexity analysis, edge cases — all while sharing your screen. The interviewer sees your code. They don't see Ghostbar.
 
 **Live coding demos**  
 Presenting to a client or team? Use AI to look up syntax, generate boilerplate, or sanity-check logic in real time. Nobody notices.
@@ -108,7 +108,7 @@ Pair with Ollama or LM Studio for fully on-device inference. Nothing leaves your
 
 **Option A — DMG (fastest)**
 
-Download [`Veil-v1.0.1.dmg`](https://github.com/rbc33/Veil/releases), drag to Applications, open.
+Download [`Ghostbar-v1.0.1.dmg`](https://github.com/rbc33/Ghostbar/releases), drag to Applications, open.
 
 **Option B — Build from source**
 
@@ -116,9 +116,9 @@ Download [`Veil-v1.0.1.dmg`](https://github.com/rbc33/Veil/releases), drag to Ap
 # Requirements: macOS 13+, Xcode Command Line Tools
 xcode-select --install
 
-git clone https://github.com/rbc33/Veil.git && cd Veil
+git clone https://github.com/rbc33/Ghostbar.git && cd Ghostbar
 bash build.sh
-open Veil.app
+open Ghostbar.app
 ```
 
 The **⬡** icon appears in your menu bar. Click → **Open chat**.
@@ -160,7 +160,7 @@ Any OpenAI-compatible server works — select **OpenAI** and set the URL.
 
 1. Go to [build.nvidia.com](https://build.nvidia.com) → sign in → any model → **Get API Key**
 2. Key starts with `nvapi-`
-3. In Veil: select **NVIDIA NIM**, paste key
+3. In Ghostbar: select **NVIDIA NIM**, paste key
 
 Hundreds of models (Llama, Mistral, Gemma, Qwen, DeepSeek) — no credit card required.
 
@@ -189,7 +189,7 @@ Press **🎙** or **⌘⌥** → speak → press again → transcribed and sent.
 
 **⌘⇧** → captures screen → attaches to next message.
 
-The model sees your screen. The screen recorder doesn't see Veil.
+The model sees your screen. The screen recorder doesn't see Ghostbar.
 
 Works with any vision model: `llava`, `gpt-4o`, `gemma3`, `claude-opus-4-7`…
 
@@ -224,8 +224,8 @@ All shortcuts customizable in Settings.
 PRs welcome. Open an issue first for large changes.
 
 ```bash
-git clone https://github.com/rbc33/Veil.git
-cd Veil
+git clone https://github.com/rbc33/Ghostbar.git
+cd Ghostbar
 open Package.swift   # Xcode opens automatically
 ```
 
