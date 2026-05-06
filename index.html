@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Archivo+Black&family=Instrument+Serif:ital@0;1&display=swap" />
-<link rel="icon" type="image/png" href="favicon.png">
 
 <style>
   :root {
@@ -591,11 +590,15 @@
   .be .tag.cloud { color: var(--ink-dim); }
 
   /* INSTALL */
-  .install-grid { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--rule); }
-  @media (max-width: 880px) { .install-grid { grid-template-columns: 1fr; } }
+  .install-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 1px solid var(--rule); }
+  @media (max-width: 1100px) { .install-grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 720px) { .install-grid { grid-template-columns: 1fr; } }
   .ins { padding: 36px 36px 40px; border-right: 1px solid var(--rule); }
   .ins:last-child { border-right: 0; }
-  @media (max-width: 880px) {
+  @media (max-width: 1100px) {
+    .ins:nth-child(2) { border-right: 0; }
+  }
+  @media (max-width: 720px) {
     .ins { border-right: 0; border-bottom: 1px solid var(--rule); }
     .ins:last-child { border-bottom: 0; }
   }
@@ -772,6 +775,7 @@
       <a href="#features"><span class="num">03</span>FEATURES</a>
       <a href="#backends"><span class="num">04</span>BACKENDS</a>
       <a href="#install"><span class="num">05</span>INSTALL</a>
+      <a href="#install"><span class="num">06</span>HOMEBREW</a>
     </nav>
     <a href="#install" class="topbar-cta">Download</a>
   </div>
@@ -1197,6 +1201,29 @@
       <div class="ins">
         <div class="opt">
           <span class="badge">B</span>
+          <h3>Homebrew</h3>
+        </div>
+        <div class="terminal">
+          <div class="tt-head">
+            <div class="dots"><span></span><span></span><span></span></div>
+            <span>~ — zsh — 80×6</span>
+          </div>
+          <div class="tt-body">
+            <div><span class="prompt">$</span> brew tap rbc33/ghostbar</div>
+            <div><span class="prompt">$</span> brew install --cask ghostbar</div>
+            <div>&nbsp;</div>
+            <div><span class="ok">▌ ⬡ appears in menu bar.</span></div>
+          </div>
+        </div>
+        <p style="margin: 16px 0 0; color: var(--ink-dim); font-size: 12px; line-height: 1.6;">
+          <span style="color: var(--accent); letter-spacing: 0.16em; text-transform: uppercase; font-size: 10px;">Note &nbsp;/&nbsp;</span>
+          Not notarized. On first launch: right-click → Open → Open anyway.
+        </p>
+      </div>
+
+      <div class="ins">
+        <div class="opt">
+          <span class="badge">C</span>
           <h3>Build from source</h3>
         </div>
         <div class="terminal">

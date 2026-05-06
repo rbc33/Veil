@@ -17,7 +17,7 @@
 
 <br>
 
-[**Download DMG**](https://github.com/rbc33/Ghostbar/releases) · [**Build from source**](#install) · [**Report bug**](https://github.com/rbc33/Ghostbar/issues)
+[**Download DMG**](https://github.com/rbc33/Ghostbar/releases) · [**Homebrew**](#install-via-homebrew) · [**Build from source**](#install) · [**Report bug**](https://github.com/rbc33/Ghostbar/issues)
 
 </div>
 
@@ -104,13 +104,31 @@ Pair with Ollama or LM Studio for fully on-device inference. Nothing leaves your
 
 ---
 
+## Install via Homebrew
+
+```bash
+brew tap rbc33/ghostbar
+brew install --cask ghostbar
+```
+
+> **Note:** Ghostbar is not notarized. On first launch, right-click → Open → Open anyway.
+
+---
+
 ## Install
 
 **Option A — DMG (fastest)**
 
-Download [`Ghostbar-v1.0.1.dmg`](https://github.com/rbc33/Ghostbar/releases), drag to Applications, open.
+Download [`Ghostbar-v1.0.2.dmg`](https://github.com/rbc33/Ghostbar/releases), drag to Applications, open.
 
-**Option B — Build from source**
+**Option B — Homebrew**
+
+```bash
+brew tap rbc33/ghostbar
+brew install --cask ghostbar
+```
+
+**Option C — Build from source**
 
 ```bash
 # Requirements: macOS 13+, Xcode Command Line Tools
