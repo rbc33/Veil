@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "Ghostbar",
-            path: "Sources/Veil",
+            path: "Sources/Ghostbar",
             linkerSettings: [.linkedFramework("Carbon")]
         )
     ]
